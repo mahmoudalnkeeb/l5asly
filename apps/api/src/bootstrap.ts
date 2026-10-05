@@ -26,6 +26,7 @@ import { YtDlpYoutubeDownloader } from "./modules/summaries/youtube-downloader.j
 export interface ApplicationRuntime {
   app: ReturnType<typeof createApp>;
   database: DatabaseSync;
+  close: () => void;
 }
 
 export function buildApplication(config: AppConfig): ApplicationRuntime {
@@ -52,7 +53,31 @@ export function buildApplication(config: AppConfig): ApplicationRuntime {
   const jobRunner = new SummaryJobRunner(summaryService, logger);
   const app = createApp({ config, summaryService, jobRunner, log: logger });
 
-  return { app, database };
+  void summaryService
+    .cleanupExpiredMedia()
+    .catch((error: unknown) =>
+      logger.error({ err: error }, "Retry media cleanup failed"),
+    );
+  const cleanupTimer = setInterval(
+    () => {
+      void summaryService
+        .cleanupExpiredMedia()
+        .catch((error: unknown) =>
+          logger.error({ err: error }, "Retry media cleanup failed"),
+        );
+    },
+    60 * 60 * 1000,
+  );
+  cleanupTimer.unref();
+
+  return {
+    app,
+    database,
+    close: () => {
+      clearInterval(cleanupTimer);
+      database.close();
+    },
+  };
 }
 
 function createProviders(config: AppConfig): {
@@ -69,7 +94,9 @@ function createProviders(config: AppConfig): {
   }
 
   if (!config.deepgramApiKey || !config.llmApiKey || !config.jevApiKey) {
-    throw new Error("Live provider credentials are missing from validated configuration.");
+    throw new Error(
+      "Live provider credentials are missing from validated configuration.",
+    );
   }
 
   return {

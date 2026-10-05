@@ -1,16 +1,34 @@
-import { ArrowLeft, Check, Clipboard, Download, FileVideo, Search, TriangleAlert } from "lucide-react";
+import {
+  Alert,
+  AlertTitle,
+  Box,
+  Button,
+  Chip,
+  Container,
+  Divider,
+  InputAdornment,
+  List,
+  ListItem,
+  ListItemText,
+  Paper,
+  Stack,
+  Tab,
+  Tabs,
+  TextField,
+  Typography,
+} from "@mui/material";
+import ArrowBack from "@mui/icons-material/ArrowBack";
+import ContentCopyOutlined from "@mui/icons-material/ContentCopyOutlined";
+import DownloadOutlined from "@mui/icons-material/DownloadOutlined";
+import SearchOutlined from "@mui/icons-material/SearchOutlined";
 import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { toast } from "sonner";
 
-import type { SummaryLanguage, SummaryResult as SummaryResultData } from "@l5sly/contracts";
-
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type {
+  SummaryLanguage,
+  SummaryResult as SummaryResultData,
+} from "@l5sly/contracts";
+import { useNotification } from "@/components/notifications";
 import { formatTimestamp } from "@/features/summaries/format";
 
 interface SummaryResultProps {
@@ -19,7 +37,10 @@ interface SummaryResultProps {
   requestedLanguage: SummaryLanguage;
 }
 
-const verdictLabels: Record<SummaryResultData["verdict"]["recommendation"], string> = {
+const verdictLabels: Record<
+  SummaryResultData["verdict"]["recommendation"],
+  string
+> = {
   watch: "Worth watching",
   "watch-key-moments": "Key moments only",
   skip: "Brief is enough",
@@ -36,14 +57,28 @@ const languageLabels: Record<string, string> = {
   spanish: "Spanish",
 };
 
-function formatLanguageLabel(sourceLanguage: string, requestedLanguage: SummaryLanguage): string {
+function formatLanguageLabel(
+  sourceLanguage: string,
+  requestedLanguage: SummaryLanguage,
+): string {
   const normalizedLanguage = sourceLanguage.trim().toLocaleLowerCase();
   if (!normalizedLanguage || normalizedLanguage === "unknown") {
     return requestedLanguage;
   }
 
   const languageCode = normalizedLanguage.split("-")[0] ?? normalizedLanguage;
-  return languageLabels[normalizedLanguage] ?? languageLabels[languageCode] ?? sourceLanguage;
+  return (
+    languageLabels[normalizedLanguage] ??
+    languageLabels[languageCode] ??
+    sourceLanguage
+  );
+}
+
+function getContentProps(text: string): { dir: "rtl" | "auto"; lang?: "ar" } {
+  if (/\p{Script=Arabic}/u.test(text)) {
+    return { dir: "rtl", lang: "ar" };
+  }
+  return { dir: "auto" };
 }
 
 function highlightTranscriptText(text: string, search: string): ReactNode {
@@ -65,7 +100,10 @@ function highlightTranscriptText(text: string, search: string): ReactNode {
 
     const matchEnd = matchStart + query.length;
     parts.push(
-      <mark key={`${matchStart}-${matchEnd}`} className="rounded-sm bg-accent px-0.5 text-accent-foreground">
+      <mark
+        key={`${matchStart}-${matchEnd}`}
+        className="rounded-sm bg-accent px-0.5 text-accent-foreground"
+      >
         {text.slice(matchStart, matchEnd)}
       </mark>,
     );
@@ -84,19 +122,45 @@ function highlightTranscriptText(text: string, search: string): ReactNode {
   return parts;
 }
 
-export function SummaryResult({ result, sourceName, requestedLanguage }: SummaryResultProps) {
+function guidanceExport(result: SummaryResultData): string[] {
+  const guidance = result.personalizedGuidance;
+  if (!guidance) return [];
+  return [
+    "VIEWING PLAN",
+    guidance.relevance,
+    "",
+    ...(guidance.prerequisites.length
+      ? [
+          "PREPARATION",
+          ...guidance.prerequisites.map(
+            (item) => `- ${item.topic} (${item.status}): ${item.reason}`,
+          ),
+          "",
+        ]
+      : []),
+    ...(guidance.nextSteps.length
+      ? ["NEXT STEPS", ...guidance.nextSteps.map((step) => `- ${step}`), ""]
+      : []),
+  ];
+}
+
+export function SummaryResult({
+  result,
+  sourceName,
+  requestedLanguage,
+}: SummaryResultProps) {
   const [search, setSearch] = useState("");
+  const [tab, setTab] = useState("summary");
+  const notify = useNotification();
   const matchingTranscript = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
     if (!query) {
       return result.transcript;
     }
-    return result.transcript.filter((segment) => segment.text.toLocaleLowerCase().includes(query));
+    return result.transcript.filter((segment) =>
+      segment.text.toLocaleLowerCase().includes(query),
+    );
   }, [result.transcript, search]);
-  const recommendedMomentsByStart = useMemo(
-    () => new Map(result.recommendedMoments.map((moment) => [moment.startSeconds, moment])),
-    [result.recommendedMoments],
-  );
 
   async function copySummary(): Promise<void> {
     const text = [
@@ -107,10 +171,23 @@ export function SummaryResult({ result, sourceName, requestedLanguage }: Summary
       "DIRECT ANSWER",
       result.viewerAnswer,
       "",
-      ...result.sections.flatMap((section) => [section.title, section.body, ""]),
+      ...guidanceExport(result),
+      ...result.sections.flatMap((section) => [
+        section.title,
+        section.body,
+        "",
+      ]),
     ].join("\n");
-    await navigator.clipboard.writeText(text);
-    toast.success("Summary copied to your clipboard.");
+    try {
+      await navigator.clipboard.writeText(text);
+      notify({ severity: "success", message: "Summary copied." });
+    } catch {
+      notify({
+        severity: "error",
+        message:
+          "Could not copy the summary. Check your browser's clipboard permission.",
+      });
+    }
   }
 
   function downloadNotes(): void {
@@ -123,7 +200,10 @@ export function SummaryResult({ result, sourceName, requestedLanguage }: Summary
       "DIRECT ANSWER",
       result.viewerAnswer,
       "",
-      ...(result.caveats.length ? ["CAVEATS", ...result.caveats.map((caveat) => `- ${caveat}`), ""] : []),
+      ...guidanceExport(result),
+      ...(result.caveats.length
+        ? ["CAVEATS", ...result.caveats.map((caveat) => `- ${caveat}`), ""]
+        : []),
       "KEY NOTES",
       ...result.notes.map((note) => `- ${note.title}: ${note.detail}`),
     ].join("\n");
@@ -137,167 +217,504 @@ export function SummaryResult({ result, sourceName, requestedLanguage }: Summary
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 pb-20 pt-6 sm:px-6 lg:px-8">
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <Button variant="ghost" className="w-fit px-0 hover:bg-transparent" asChild><Link to="/library"><ArrowLeft />Back to library</Link></Button>
-        <div className="grid grid-cols-2 gap-2 sm:flex">
-          <Button variant="outline" onClick={() => void copySummary()}><Clipboard />Copy summary</Button>
-          <Button onClick={downloadNotes}><Download />Download notes</Button>
-        </div>
-      </div>
+    <Container
+      maxWidth="lg"
+      sx={{
+        pt: 3,
+        pb: 8,
+        "& [dir]": { overflowWrap: "anywhere", textAlign: "start" },
+      }}
+    >
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={1}
+        sx={{ mb: 3, justifyContent: "space-between" }}
+      >
+        <Button
+          component={Link}
+          to="/library"
+          startIcon={<ArrowBack />}
+          sx={{ alignSelf: "flex-start" }}
+        >
+          Library
+        </Button>
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+          <Button
+            variant="outlined"
+            startIcon={<ContentCopyOutlined />}
+            onClick={() => void copySummary()}
+          >
+            Copy summary
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<DownloadOutlined />}
+            onClick={downloadNotes}
+          >
+            Download notes
+          </Button>
+        </Stack>
+      </Stack>
 
-      <header className="border-b pb-9">
-        <p className="flex max-w-full items-center gap-2 truncate text-sm text-muted-foreground">
-          <FileVideo className="size-4 shrink-0" />
-          <span className="truncate font-mono text-xs">{sourceName}</span>
-        </p>
-        <div className="mt-5 grid items-end gap-8 lg:grid-cols-[minmax(0,1.45fr)_minmax(19rem,0.55fr)] lg:gap-14">
-          <div>
-            <h1 className="max-w-4xl text-4xl font-bold leading-[1.04] tracking-[-0.05em] sm:text-5xl lg:text-[3.5rem]">
-            {result.title}
-            </h1>
-            <div className="mt-5 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              <span className="font-mono text-xs tabular-nums">{formatTimestamp(result.durationSeconds)}</span>
-              <span aria-hidden="true">/</span>
-              <span>{formatLanguageLabel(result.sourceLanguage, requestedLanguage)}</span>
-            </div>
-          </div>
+      <Box component="header" sx={{ mb: 3 }}>
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          {...getContentProps(sourceName)}
+          sx={{ overflowWrap: "anywhere", fontFamily: "var(--font-mono)" }}
+        >
+          {sourceName}
+        </Typography>
+        <Typography
+          variant="h1"
+          {...getContentProps(result.title)}
+          sx={{
+            mt: 1,
+            maxWidth: 900,
+            fontSize: { xs: "1.75rem", sm: "2.25rem" },
+          }}
+        >
+          {result.title}
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+          <bdi dir="ltr" className="font-mono">
+            {formatTimestamp(result.durationSeconds)}
+          </bdi>{" "}
+          · {formatLanguageLabel(result.sourceLanguage, requestedLanguage)}
+        </Typography>
+      </Box>
 
-          <Card className="gap-4 border-border/80 bg-accent/10 py-5">
-            <CardHeader className="gap-3">
-              <Badge className="w-fit bg-accent text-accent-foreground hover:bg-accent">
-                <Check />{verdictLabels[result.verdict.recommendation]}
-              </Badge>
-              <CardTitle className="text-2xl leading-tight tracking-[-0.03em]">{result.verdict.headline}</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm leading-6 text-muted-foreground">{result.verdict.reason}</CardContent>
-          </Card>
-        </div>
-      </header>
+      <Tabs
+        value={tab}
+        onChange={(_, value: string) => setTab(value)}
+        aria-label="Summary views"
+        variant="scrollable"
+        scrollButtons="auto"
+        sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}
+      >
+        <Tab
+          id="summary-tab"
+          aria-controls="summary-panel"
+          value="summary"
+          label="Summary"
+        />
+        <Tab
+          id="notes-tab"
+          aria-controls="notes-panel"
+          value="notes"
+          label="Notes"
+        />
+        <Tab
+          id="transcript-tab"
+          aria-controls="transcript-panel"
+          value="transcript"
+          label="Transcript"
+        />
+      </Tabs>
 
-      <Tabs defaultValue="summary" className="mt-6">
-        <TabsList variant="line" className="w-full justify-start overflow-x-auto overflow-y-hidden">
-          <TabsTrigger value="summary">Summary</TabsTrigger>
-          <TabsTrigger value="notes">Notes</TabsTrigger>
-          <TabsTrigger value="transcript">Transcript</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="summary" className="mt-8">
-          <div className="grid items-start gap-12 lg:grid-cols-[minmax(0,1fr)_21rem] lg:gap-16">
-            <article className="max-w-3xl">
-              <section className="rounded-2xl border border-primary/20 bg-primary/5 px-6 py-7 sm:px-8 sm:py-8">
-                <h2 className="text-sm font-bold text-primary">Direct answer</h2>
-                <p className="mt-4 text-2xl font-semibold leading-[1.25] tracking-[-0.025em] sm:text-[1.8rem]">{result.viewerAnswer}</p>
-              </section>
-
-              <section className="mt-11">
-                <h2 className="text-xl font-bold tracking-[-0.03em]">Summary</h2>
-                <p className="mt-3 max-w-[65ch] text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">{result.overview}</p>
-              </section>
-              {result.sections.map((section) => (
-                <section key={section.title} className="mt-9 border-t pt-8">
-                  <h2 className="text-2xl font-bold tracking-[-0.035em]">{section.title}</h2>
-                  <p className="mt-3 max-w-[65ch] text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">{section.body}</p>
-                </section>
-              ))}
-
-              {result.caveats.length ? (
-                <Alert className="mt-10">
-                  <TriangleAlert />
-                  <AlertTitle>What to keep in mind</AlertTitle>
-                  <AlertDescription>
-                    <ul className="grid list-disc gap-2 pl-4">
-                      {result.caveats.map((caveat) => <li key={caveat}>{caveat}</li>)}
-                    </ul>
-                  </AlertDescription>
-                </Alert>
-              ) : null}
-            </article>
-
-            <aside className="lg:sticky lg:top-24" aria-labelledby="moments-title">
-              <h2 id="moments-title" className="text-xl font-bold tracking-[-0.03em]">Recommended moments</h2>
-              {result.recommendedMoments.length ? (
-                <Card className="mt-4 gap-0 overflow-hidden py-0">
-                  {result.recommendedMoments.map((moment, index) => (
-                    <div key={`${moment.startSeconds}-${moment.title}`} className={`grid grid-cols-[3.25rem_1fr] gap-3 p-4 ${index < result.recommendedMoments.length - 1 ? "border-b" : ""}`}>
-                      <time className="pt-0.5 font-mono text-xs font-medium tabular-nums text-ring">{formatTimestamp(moment.startSeconds)}</time>
-                      <div>
-                        <p className="font-semibold">{moment.title}</p>
-                        <p className="mt-1 text-sm leading-6 text-muted-foreground">{moment.reason}</p>
-                      </div>
-                    </div>
-                  ))}
-                </Card>
-              ) : <p className="mt-4 rounded-xl border border-dashed p-5 text-sm text-muted-foreground">No specific moments were identified.</p>}
-            </aside>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="notes" className="mt-8">
-          <section className="max-w-5xl">
-            <h2 className="text-2xl font-bold tracking-[-0.035em]">Key notes</h2>
-            <p className="mt-2 text-muted-foreground">The claims, context, and takeaways worth keeping.</p>
-            <div className="mt-7 grid border-t sm:grid-cols-2 sm:gap-x-10">
-              {result.notes.map((note) => (
-                <article key={`${note.category}-${note.title}`} className="border-b py-6">
-                  <p className="text-sm font-bold text-ring">{note.category}</p>
-                  <h3 className="mt-2 text-xl font-bold tracking-[-0.025em]">{note.title}</h3>
-                  <p className="mt-2 leading-7 text-muted-foreground">{note.detail}</p>
-                </article>
-              ))}
-            </div>
-          </section>
-        </TabsContent>
-
-        <TabsContent value="transcript" className="mt-8">
-          <div className="mb-8 grid items-end gap-5 sm:grid-cols-[1fr_minmax(16rem,22rem)]">
-            <div>
-              <h2 className="text-2xl font-bold tracking-[-0.035em]">Transcript</h2>
-              <p className="mt-2 text-muted-foreground">
-                {search ? `${matchingTranscript.length} of ${result.transcript.length} segments match.` : `${result.transcript.length} timestamped segments.`}
-              </p>
-            </div>
-            <label className="grid gap-2 text-sm font-medium" htmlFor="transcript-search">
-              Search transcript
-              <span className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="transcript-search"
-                  className="pl-9"
-                  type="search"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search words or phrases"
-                />
-              </span>
-            </label>
-          </div>
-
-          <div className="max-w-4xl">
-            {matchingTranscript.map((segment) => {
-              const recommendedMoment = recommendedMomentsByStart.get(segment.startSeconds);
-
-              return (
-                <div
-                  key={`${segment.startSeconds}-${segment.endSeconds}`}
-                  className={`grid grid-cols-[4rem_1fr] gap-4 border-b py-5 sm:grid-cols-[5rem_1fr] sm:gap-6 ${recommendedMoment ? "my-2 rounded-xl bg-accent/10 px-4 py-4" : ""}`}
+      {tab === "summary" ? (
+        <Box
+          role="tabpanel"
+          id="summary-panel"
+          aria-labelledby="summary-tab"
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr) 300px" },
+            gap: 4,
+            alignItems: "start",
+          }}
+        >
+          <Box component="article" sx={{ minWidth: 0 }}>
+            <Paper sx={{ p: 3, bgcolor: "action.selected", mb: 4 }}>
+              <Typography variant="h3" color="primary">
+                Direct answer
+              </Typography>
+              <Typography
+                {...getContentProps(result.viewerAnswer)}
+                sx={{
+                  mt: 1,
+                  fontSize: "1.25rem",
+                  fontWeight: 500,
+                  lineHeight: 1.6,
+                }}
+              >
+                {result.viewerAnswer}
+              </Typography>
+            </Paper>
+            {result.personalizedGuidance ? (
+              <Box
+                component="section"
+                aria-labelledby="viewing-plan-title"
+                sx={{ mb: 4 }}
+              >
+                <Typography variant="h2" id="viewing-plan-title">
+                  Your viewing plan
+                </Typography>
+                <Typography
+                  {...getContentProps(result.personalizedGuidance.relevance)}
+                  color="text.secondary"
+                  sx={{ mt: 1.5 }}
                 >
-                  <time className={`font-mono text-xs tabular-nums ${recommendedMoment ? "font-semibold text-primary" : "text-muted-foreground"}`}>
+                  {result.personalizedGuidance.relevance}
+                </Typography>
+                {result.personalizedGuidance.prerequisites.length ? (
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="h3">Before watching</Typography>
+                    {result.personalizedGuidance.prerequisites.map((item) => (
+                      <Box key={item.topic} sx={{ mt: 1.5 }}>
+                        <Stack
+                          direction="row"
+                          sx={{
+                            gap: 1,
+                            alignItems: "baseline",
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <Typography
+                            {...getContentProps(item.topic)}
+                            sx={{ fontWeight: 600 }}
+                          >
+                            {item.topic}
+                          </Typography>
+                          <Chip
+                            size="small"
+                            variant="outlined"
+                            label={
+                              item.status === "already-known"
+                                ? "Already familiar"
+                                : "Prepare first"
+                            }
+                          />
+                        </Stack>
+                        <Typography
+                          {...getContentProps(item.reason)}
+                          variant="body2"
+                          color="text.secondary"
+                          sx={{ mt: 0.5 }}
+                        >
+                          {item.reason}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Box>
+                ) : null}
+                {result.personalizedGuidance.nextSteps.length ? (
+                  <>
+                    <Typography variant="h3" sx={{ mt: 2 }}>
+                      Next steps
+                    </Typography>
+                    <Box
+                      component="ul"
+                      {...getContentProps(
+                        result.personalizedGuidance.nextSteps.join(" "),
+                      )}
+                      sx={{
+                        mt: 1,
+                        mb: 0,
+                        paddingInlineStart: 3,
+                        listStyleType: "disc",
+                      }}
+                    >
+                      {result.personalizedGuidance.nextSteps.map((step) => (
+                        <Box
+                          component="li"
+                          key={step}
+                          sx={{ "& + li": { mt: 1 } }}
+                        >
+                          {step}
+                        </Box>
+                      ))}
+                    </Box>
+                  </>
+                ) : null}
+              </Box>
+            ) : null}
+            <Typography variant="h2">Summary</Typography>
+            <Typography
+              {...getContentProps(result.overview)}
+              color="text.secondary"
+              sx={{ mt: 1.5, mb: 3 }}
+            >
+              {result.overview}
+            </Typography>
+            {result.sections.map((section) => (
+              <Box component="section" key={section.title} sx={{ mb: 3 }}>
+                <Typography variant="h3" {...getContentProps(section.title)}>
+                  {section.title}
+                </Typography>
+                <Typography
+                  color="text.secondary"
+                  {...getContentProps(section.body)}
+                  sx={{ mt: 1 }}
+                >
+                  {section.body}
+                </Typography>
+              </Box>
+            ))}
+            {result.caveats.length ? (
+              <Alert severity="warning">
+                <AlertTitle>What to keep in mind</AlertTitle>
+                <Box
+                  component="ul"
+                  {...getContentProps(result.caveats.join(" "))}
+                  sx={{
+                    m: 0,
+                    paddingInlineStart: 3,
+                    paddingInlineEnd: 0,
+                    listStyleType: "disc",
+                  }}
+                >
+                  {result.caveats.map((caveat) => (
+                    <Box
+                      component="li"
+                      key={caveat}
+                      sx={{ "& + li": { mt: 1 } }}
+                    >
+                      {caveat}
+                    </Box>
+                  ))}
+                </Box>
+              </Alert>
+            ) : null}
+          </Box>
+          <Box
+            component="aside"
+            sx={{ position: { md: "sticky" }, top: 88, minWidth: 0 }}
+          >
+            <Paper variant="outlined" sx={{ p: 2.5, mb: 3 }}>
+              <Chip
+                size="small"
+                color="primary"
+                variant="outlined"
+                label={verdictLabels[result.verdict.recommendation]}
+                sx={{ mb: 1.5 }}
+              />
+              <Typography
+                variant="h3"
+                {...getContentProps(result.verdict.headline)}
+              >
+                {result.verdict.headline}
+              </Typography>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                {...getContentProps(result.verdict.reason)}
+                sx={{ mt: 1 }}
+              >
+                {result.verdict.reason}
+              </Typography>
+            </Paper>
+            <Typography variant="h3" id="moments-title">
+              Recommended moments
+            </Typography>
+            <List aria-labelledby="moments-title" disablePadding sx={{ mt: 1 }}>
+              {result.recommendedMoments.map((moment) => (
+                <ListItem
+                  key={`${moment.startSeconds}-${moment.title}`}
+                  disableGutters
+                  alignItems="flex-start"
+                  {...getContentProps(`${moment.title} ${moment.reason}`)}
+                  sx={{ gap: 1.5 }}
+                >
+                  <Typography
+                    component="time"
+                    dir="ltr"
+                    lang="en"
+                    color="primary"
+                    sx={{
+                      pt: 1,
+                      fontFamily: "var(--font-mono)",
+                      fontSize: 12,
+                      whiteSpace: "nowrap",
+                      flexShrink: 0,
+                      unicodeBidi: "isolate",
+                    }}
+                  >
+                    {formatTimestamp(moment.startSeconds)}
+                  </Typography>
+                  <ListItemText
+                    primary={moment.title}
+                    secondary={moment.reason}
+                    slotProps={{
+                      primary: {
+                        variant: "body2",
+                        ...getContentProps(moment.title),
+                        sx: { fontWeight: 600 },
+                      },
+                      secondary: {
+                        variant: "body2",
+                        ...getContentProps(moment.reason),
+                        sx: { mt: 0.5 },
+                      },
+                    }}
+                  />
+                </ListItem>
+              ))}
+            </List>
+            {!result.recommendedMoments.length ? (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                No specific moments identified.
+              </Typography>
+            ) : null}
+          </Box>
+        </Box>
+      ) : null}
+
+      {tab === "notes" ? (
+        <Box
+          role="tabpanel"
+          id="notes-panel"
+          aria-labelledby="notes-tab"
+          sx={{ maxWidth: 800 }}
+        >
+          <Typography variant="h2" sx={{ mb: 2 }}>
+            Key notes
+          </Typography>
+          {!result.notes.length ? (
+            <Typography color="text.secondary">
+              No additional source notes for this answer.
+            </Typography>
+          ) : null}
+          {result.notes.map((note) => (
+            <Box
+              component="article"
+              key={`${note.category}-${note.title}`}
+              sx={{ py: 2 }}
+            >
+              <Typography
+                variant="caption"
+                color="primary"
+                {...getContentProps(note.category)}
+              >
+                {note.category}
+              </Typography>
+              <Typography
+                variant="h3"
+                {...getContentProps(note.title)}
+                sx={{ mt: 0.5 }}
+              >
+                {note.title}
+              </Typography>
+              <Typography
+                color="text.secondary"
+                {...getContentProps(note.detail)}
+                sx={{ mt: 1, mb: 2 }}
+              >
+                {note.detail}
+              </Typography>
+              <Divider />
+            </Box>
+          ))}
+        </Box>
+      ) : null}
+
+      {tab === "transcript" ? (
+        <Box
+          role="tabpanel"
+          id="transcript-panel"
+          aria-labelledby="transcript-tab"
+        >
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={2}
+            sx={{ mb: 3, justifyContent: "space-between" }}
+          >
+            <Box>
+              <Typography variant="h2">Transcript</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                {search
+                  ? `${matchingTranscript.length} of ${result.transcript.length} segments match.`
+                  : `${result.transcript.length} timestamped segments.`}
+              </Typography>
+            </Box>
+            <TextField
+              label="Search transcript"
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search words or phrases"
+              sx={{ width: { xs: "100%", sm: 320 } }}
+              slotProps={{
+                htmlInput: { dir: "auto" },
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchOutlined fontSize="small" />
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
+          </Stack>
+          <Box sx={{ maxWidth: 900 }}>
+            {matchingTranscript.map((segment) => {
+              const recommendedMoment = result.recommendedMoments.find(
+                (moment) =>
+                  moment.startSeconds >= segment.startSeconds &&
+                  moment.startSeconds < segment.endSeconds,
+              );
+              return (
+                <Box
+                  key={`${segment.startSeconds}-${segment.endSeconds}`}
+                  dir={getContentProps(segment.text).dir}
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: "64px minmax(0, 1fr)",
+                    gap: 2,
+                    p: 2,
+                    mb: 1,
+                    borderRadius: 2,
+                    bgcolor: recommendedMoment
+                      ? "action.selected"
+                      : "transparent",
+                    borderBottom: 1,
+                    borderColor: "divider",
+                  }}
+                >
+                  <Typography
+                    component="time"
+                    dir="ltr"
+                    lang="en"
+                    variant="caption"
+                    color={recommendedMoment ? "primary" : "text.secondary"}
+                    sx={{
+                      fontFamily: "var(--font-mono)",
+                      pt: 0.5,
+                      whiteSpace: "nowrap",
+                      unicodeBidi: "isolate",
+                    }}
+                  >
                     {formatTimestamp(segment.startSeconds)}
-                  </time>
-                  <div>
-                    {recommendedMoment ? <p className="mb-2 text-sm font-semibold text-primary">{recommendedMoment.title}</p> : null}
-                    <p className="leading-7 text-muted-foreground">{highlightTranscriptText(segment.text, search)}</p>
-                  </div>
-                </div>
+                  </Typography>
+                  <Box sx={{ minWidth: 0 }}>
+                    {recommendedMoment ? (
+                      <Typography
+                        variant="body2"
+                        color="primary"
+                        sx={{ mb: 1, fontWeight: 600 }}
+                        {...getContentProps(recommendedMoment.title)}
+                      >
+                        {recommendedMoment.title}
+                      </Typography>
+                    ) : null}
+                    <Typography
+                      color="text.secondary"
+                      {...getContentProps(segment.text)}
+                    >
+                      {highlightTranscriptText(segment.text, search)}
+                    </Typography>
+                  </Box>
+                </Box>
               );
             })}
             {!matchingTranscript.length ? (
-              <p className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">No transcript lines match that search.</p>
+              <Typography color="text.secondary" sx={{ py: 4 }}>
+                No transcript lines match that search.
+              </Typography>
             ) : null}
-          </div>
-        </TabsContent>
-      </Tabs>
-    </div>
+          </Box>
+        </Box>
+      ) : null}
+    </Container>
   );
 }

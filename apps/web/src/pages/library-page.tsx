@@ -1,14 +1,25 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, FileVideo, Link2, Plus } from "lucide-react";
+import {
+  Alert,
+  AlertTitle,
+  Box,
+  Button,
+  Chip,
+  Container,
+  Divider,
+  List,
+  ListItemButton,
+  Paper,
+  Skeleton,
+  Stack,
+  Typography,
+} from "@mui/material";
+import Add from "@mui/icons-material/Add";
+import ArrowForward from "@mui/icons-material/ArrowForward";
+import VideoLibraryOutlined from "@mui/icons-material/VideoLibraryOutlined";
 import { Link } from "react-router-dom";
 
 import type { SummaryListItem } from "@l5sly/contracts";
-
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { formatCreatedAt, formatTimestamp } from "@/features/summaries/format";
 import { getErrorMessage, listSummaries } from "@/lib/api-client";
 
@@ -24,122 +35,128 @@ export function LibraryPage() {
   const summariesQuery = useQuery({
     queryKey: ["summaries"],
     queryFn: listSummaries,
-    refetchInterval: (query) => query.state.data?.some((item) => item.status === "queued" || item.status === "processing") ? 1_500 : false,
+    refetchInterval: (query) =>
+      query.state.data?.some(
+        (item) => item.status === "queued" || item.status === "processing",
+      )
+        ? 1_500
+        : false,
   });
-
   return (
-    <section className="mx-auto max-w-6xl px-4 pb-20 pt-9 sm:px-6 sm:pt-12 lg:px-8 lg:pt-14">
-      <header className="mb-9 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-4xl font-bold tracking-[-0.045em] sm:text-5xl">Your summaries</h1>
-          <p className="mt-3 text-muted-foreground">Finished briefs and active jobs appear here.</p>
-        </div>
-        <Button className="w-full sm:w-auto" asChild><Link to="/"><Plus />New summary</Link></Button>
-      </header>
-
-      {summariesQuery.isPending ? <LibrarySkeleton /> : null}
-
+    <Container maxWidth="lg" sx={{ pt: { xs: 3, sm: 5 }, pb: 8 }}>
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={2}
+        sx={{
+          mb: 3,
+          justifyContent: "space-between",
+          alignItems: { sm: "center" },
+        }}
+      >
+        <Typography variant="h1">Library</Typography>
+        <Button variant="contained" component={Link} to="/" startIcon={<Add />}>
+          New summary
+        </Button>
+      </Stack>
+      {summariesQuery.isPending ? (
+        <Paper variant="outlined" sx={{ p: 3 }}>
+          {[0, 1, 2].map((item) => (
+            <Box key={item} sx={{ py: 2 }}>
+              <Skeleton width={100} />
+              <Skeleton height={40} width="75%" />
+              <Skeleton width="40%" />
+            </Box>
+          ))}
+        </Paper>
+      ) : null}
       {summariesQuery.isError ? (
-        <Alert variant="destructive">
+        <Alert severity="error">
           <AlertTitle>Could not load your library</AlertTitle>
-          <AlertDescription>{getErrorMessage(summariesQuery.error)}</AlertDescription>
+          {getErrorMessage(summariesQuery.error)}
         </Alert>
       ) : null}
-
-      {summariesQuery.data?.length === 0 ? <EmptyLibrary /> : null}
-
-      {summariesQuery.data?.length ? (
-        <Card className="gap-0 overflow-hidden py-0">
-          {summariesQuery.data.map((summary, index) => (
-            <SummaryRow
-              key={summary.id}
-              summary={summary}
-              hasDivider={index < summariesQuery.data.length - 1}
-            />
-          ))}
-        </Card>
+      {summariesQuery.data?.length === 0 ? (
+        <Paper variant="outlined" sx={{ py: 8, px: 3, textAlign: "center" }}>
+          <VideoLibraryOutlined
+            sx={{ fontSize: 40, color: "text.secondary", mb: 2 }}
+          />
+          <Typography variant="h2">No summaries yet</Typography>
+          <Typography color="text.secondary" sx={{ mt: 1, mb: 3 }}>
+            Your completed summaries and active jobs will appear here.
+          </Typography>
+          <Button component={Link} to="/" variant="contained">
+            Summarize a video
+          </Button>
+        </Paper>
       ) : null}
-    </section>
+      {summariesQuery.data?.length ? (
+        <Paper variant="outlined" sx={{ overflow: "hidden" }}>
+          <List disablePadding>
+            {summariesQuery.data.map((summary, index) => (
+              <Box component="li" key={summary.id} sx={{ listStyle: "none" }}>
+                <SummaryRow summary={summary} />
+                {index < summariesQuery.data.length - 1 ? <Divider /> : null}
+              </Box>
+            ))}
+          </List>
+        </Paper>
+      ) : null}
+    </Container>
   );
 }
 
-const statusStyles: Record<SummaryListItem["status"], string> = {
-  queued: "bg-muted text-muted-foreground",
-  processing: "bg-accent text-accent-foreground",
-  completed: "bg-secondary text-secondary-foreground",
-  failed: "bg-destructive text-white",
-  cancelled: "border-border bg-transparent text-muted-foreground",
-};
-
-function SummaryRow({ summary, hasDivider }: { summary: SummaryListItem; hasDivider: boolean }) {
-  const actionLabel = getActionLabel(summary.status);
-  const SourceIcon = summary.source.type === "upload" ? FileVideo : Link2;
+function SummaryRow({ summary }: { summary: SummaryListItem }) {
+  let statusColor: "error" | "success" | "default" = "default";
+  if (summary.status === "failed") statusColor = "error";
+  if (summary.status === "completed") statusColor = "success";
+  let actionLabel = "View details";
+  if (summary.status === "completed") actionLabel = "Read summary";
+  if (summary.status === "queued" || summary.status === "processing")
+    actionLabel = "View progress";
 
   return (
-    <Link
+    <ListItemButton
+      component={Link}
       to={`/summaries/${summary.id}`}
-      className={`group grid gap-5 px-5 py-5 transition-colors hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-6 sm:py-6 ${hasDivider ? "border-b" : ""}`}
+      sx={{ display: "flex", gap: 2, p: { xs: 2, sm: 3 } }}
     >
-      <div className="min-w-0">
-        <div className="flex items-center justify-between gap-4 sm:justify-start">
-          <Badge className={statusStyles[summary.status]}>{statusLabels[summary.status]}</Badge>
-          <time className="font-mono text-xs text-muted-foreground">{formatCreatedAt(summary.createdAt)}</time>
-        </div>
-        <h2 className="mt-4 text-xl font-bold leading-snug tracking-[-0.025em] sm:text-2xl">
+      <Box sx={{ minWidth: 0, flex: 1 }}>
+        <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
+          <Chip
+            label={statusLabels[summary.status]}
+            size="small"
+            variant="outlined"
+            color={statusColor}
+          />
+          <Typography
+            component="time"
+            variant="caption"
+            color="text.secondary"
+            sx={{ fontFamily: "var(--font-mono)" }}
+          >
+            {formatCreatedAt(summary.createdAt)}
+          </Typography>
+        </Stack>
+        <Typography
+          variant="h3"
+          dir="auto"
+          sx={{ mt: 1.5, overflowWrap: "anywhere" }}
+        >
           {summary.title ?? summary.source.name}
-        </h2>
-        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5"><SourceIcon className="size-4" />{summary.source.type === "upload" ? "Uploaded media" : "Video link"}</span>
-          {summary.durationSeconds !== null ? <span className="font-mono text-xs tabular-nums">{formatTimestamp(summary.durationSeconds)}</span> : null}
-          <span>{summary.stage}</span>
-        </div>
-      </div>
-      <span className="inline-flex items-center gap-2 self-end text-sm font-semibold sm:self-center">
-        {actionLabel}<ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
-      </span>
-    </Link>
-  );
-}
-
-function getActionLabel(status: SummaryListItem["status"]): string {
-  if (status === "completed") {
-    return "Read brief";
-  }
-
-  if (status === "queued" || status === "processing") {
-    return "View progress";
-  }
-
-  return "View details";
-}
-
-function EmptyLibrary() {
-  return (
-    <Card className="border-dashed">
-      <CardContent className="grid min-h-96 place-items-center p-8 text-center">
-        <div>
-          <span className="mx-auto mb-6 grid size-14 place-items-center rounded-xl bg-muted"><FileVideo className="size-6" /></span>
-          <h2 className="text-2xl font-bold tracking-[-0.035em]">No saved summaries yet</h2>
-          <p className="mx-auto mt-3 max-w-md leading-7 text-muted-foreground">
-            Process a video to start a searchable library of ideas, notes, and watch verdicts.
-          </p>
-          <Button className="mt-6" variant="outline" asChild><Link to="/">Summarize a video</Link></Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function LibrarySkeleton() {
-  return (
-    <Card className="gap-0 overflow-hidden py-0">
-      {[0, 1, 2].map((item) => (
-        <CardContent key={item} className={`space-y-4 p-6 ${item < 2 ? "border-b" : ""}`}>
-          <div className="flex justify-between"><Skeleton className="h-5 w-20" /><Skeleton className="h-4 w-28" /></div>
-          <Skeleton className="h-7 w-3/4" />
-          <Skeleton className="h-5 w-2/5" />
-        </CardContent>
-      ))}
-    </Card>
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+          {summary.source.type === "upload" ? "Uploaded media" : "Video link"}
+          {summary.durationSeconds !== null
+            ? ` · ${formatTimestamp(summary.durationSeconds)}`
+            : ""}
+          {summary.status !== "completed" ? ` · ${summary.stage}` : ""}
+        </Typography>
+      </Box>
+      <ArrowForward
+        aria-label={actionLabel}
+        fontSize="small"
+        sx={{ color: "primary.main", flexShrink: 0 }}
+      />
+    </ListItemButton>
   );
 }

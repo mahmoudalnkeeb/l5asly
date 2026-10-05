@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { z } from "zod";
 
 export function createDatabase(databasePath: string): DatabaseSync {
   if (databasePath !== ":memory:") {
@@ -33,5 +34,35 @@ export function createDatabase(databasePath: string): DatabaseSync {
       ON summary_jobs (created_at DESC);
   `);
 
+  const columns = z
+    .array(z.object({ name: z.string() }))
+    .parse(database.prepare("PRAGMA table_info(summary_jobs)").all());
+  if (!columns.some((column) => column.name === "source_language")) {
+    database.exec("ALTER TABLE summary_jobs ADD COLUMN source_language TEXT");
+  }
+  if (!columns.some((column) => column.name === "viewer_profile_json")) {
+    database.exec(
+      "ALTER TABLE summary_jobs ADD COLUMN viewer_profile_json TEXT",
+    );
+  }
+  for (const [name, definition] of [
+    ["failed_step", "TEXT"],
+    ["error_code", "TEXT"],
+    ["error_details_json", "TEXT"],
+    ["attempt", "INTEGER NOT NULL DEFAULT 1"],
+    ["stage_started_at", "TEXT"],
+  ]) {
+    if (!columns.some((column) => column.name === name)) {
+      database.exec(
+        `ALTER TABLE summary_jobs ADD COLUMN ${name} ${definition}`,
+      );
+    }
+  }
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS summary_checkpoints (
+      summary_id TEXT PRIMARY KEY REFERENCES summary_jobs(id) ON DELETE CASCADE,
+      checkpoint_json TEXT NOT NULL
+    );
+  `);
   return database;
 }

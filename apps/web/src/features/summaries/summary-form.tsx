@@ -1,10 +1,29 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
-import { Check, Clock3, FileVideo, Link, ListChecks, LoaderCircle, LockKeyhole, Search, Upload } from "lucide-react";
+import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
+  Alert,
+  Box,
+  Button,
+  CircularProgress,
+  FormHelperText,
+  MenuItem,
+  Paper,
+  Stack,
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
+  Typography,
+} from "@mui/material";
+import ExpandMore from "@mui/icons-material/ExpandMore";
+import LinkOutlined from "@mui/icons-material/LinkOutlined";
+import LockOutlined from "@mui/icons-material/LockOutlined";
+import UploadFileOutlined from "@mui/icons-material/UploadFileOutlined";
 import { useId, useState } from "react";
-import { useForm } from "react-hook-form";
-import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
+import { Controller, useForm } from "react-hook-form";
+import { Link, useNavigate } from "react-router-dom";
 import { z } from "zod";
 
 import {
@@ -15,82 +34,77 @@ import {
   summaryDepthSchema,
   summaryLanguageSchema,
 } from "@l5sly/contracts";
-
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
+import { useNotification } from "@/components/notifications";
+import { useViewerProfile } from "@/features/profile/viewer-profile";
 import {
   createUploadSummary,
   createUrlSummary,
   getErrorMessage,
 } from "@/lib/api-client";
 
-const formSchema = z.object({
-  language: summaryLanguageSchema,
-  depth: summaryDepthSchema,
-  expectation: z.string().trim().max(MAX_EXPECTATION_LENGTH).optional(),
-  sourceType: z.enum(["upload", "url"]),
-  url: z.string().trim().optional(),
-  file: z.instanceof(File).optional(),
-}).superRefine((values, context) => {
-  if (values.sourceType === "upload" && !values.file) {
-    context.addIssue({ code: "custom", path: ["file"], message: "Choose a video or audio file." });
-  }
-
-  if (values.sourceType === "url") {
-    const parsedUrl = z.url().safeParse(values.url);
-    const isHttpUrl = parsedUrl.success
-      && (parsedUrl.data.startsWith("http://") || parsedUrl.data.startsWith("https://"));
-    const isMalformedYouTubeUrl = isHttpUrl && isYouTubeHostname(parsedUrl.data) && !isYouTubeUrl(parsedUrl.data);
-    if (!isHttpUrl || isMalformedYouTubeUrl) {
-      context.addIssue({ code: "custom", path: ["url"], message: "Enter a YouTube link or complete HTTP/HTTPS video URL." });
+const formSchema = z
+  .object({
+    language: summaryLanguageSchema,
+    sourceLanguage: summaryLanguageSchema,
+    depth: summaryDepthSchema,
+    expectation: z.string().trim().max(MAX_EXPECTATION_LENGTH).optional(),
+    sourceType: z.enum(["upload", "url"]),
+    url: z.string().trim().optional(),
+    file: z.instanceof(File).optional(),
+  })
+  .superRefine((values, context) => {
+    if (values.sourceType === "upload" && !values.file) {
+      context.addIssue({
+        code: "custom",
+        path: ["file"],
+        message: "Choose a video or audio file.",
+      });
     }
-  }
-});
+    if (values.sourceType === "url") {
+      const parsedUrl = z.url().safeParse(values.url);
+      const isHttpUrl =
+        parsedUrl.success &&
+        (parsedUrl.data.startsWith("http://") ||
+          parsedUrl.data.startsWith("https://"));
+      const isMalformedYouTubeUrl =
+        isHttpUrl &&
+        isYouTubeHostname(parsedUrl.data) &&
+        !isYouTubeUrl(parsedUrl.data);
+      if (!isHttpUrl || isMalformedYouTubeUrl) {
+        context.addIssue({
+          code: "custom",
+          path: ["url"],
+          message: "Enter a YouTube link or complete HTTP/HTTPS video URL.",
+        });
+      }
+    }
+  });
 
 type SummaryFormValues = z.infer<typeof formSchema>;
 
-const outcomeItems = [
-  { icon: Check, title: "Quick verdict", detail: "Know whether the video is worth watching." },
-  { icon: ListChecks, title: "Key takeaways", detail: "The most useful ideas without the filler." },
-  { icon: Clock3, title: "Timestamped notes", detail: "Jump directly to important moments." },
-  { icon: Search, title: "Full transcript", detail: "Search or revisit anything later." },
-];
-
 const depthDescriptions = {
-  quick: "A concise answer with the most useful moments.",
-  detailed: "More context, sections, and supporting notes.",
-  study: "The fullest brief for review and reference.",
+  quick: "Key points and recommended moments.",
+  detailed: "More context and supporting notes.",
+  study: "A full brief for review and reference.",
 } as const;
 
 export function SummaryForm() {
   const navigate = useNavigate();
+  const notify = useNotification();
+  const { profile, storageError } = useViewerProfile();
+  const viewerProfile =
+    profile && Object.values(profile).some((value) => value.trim())
+      ? profile
+      : undefined;
   const fileInputId = useId();
   const [fileName, setFileName] = useState<string>();
+  const [isDragging, setIsDragging] = useState(false);
   const form = useForm<SummaryFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       sourceType: "upload",
       language: "English",
+      sourceLanguage: "English",
       depth: "quick",
       expectation: "",
       url: "",
@@ -107,28 +121,30 @@ export function SummaryForm() {
           file: values.file,
           options: {
             language: values.language,
+            sourceLanguage: values.sourceLanguage,
+            viewerProfile,
             depth: values.depth,
             expectation: values.expectation,
           },
         });
       }
-
       return createUrlSummary({
         url: values.url ?? "",
         language: values.language,
+        sourceLanguage: values.sourceLanguage,
+        viewerProfile,
         depth: values.depth,
         expectation: values.expectation,
       });
     },
     onSuccess: (job) => navigate(`/summaries/${job.id}`),
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) =>
+      notify({ severity: "error", message: getErrorMessage(error) }),
   });
 
-  function selectSource(value: string): void {
-    if (value !== "upload" && value !== "url") {
-      return;
-    }
-    form.setValue("sourceType", value, { shouldValidate: false });
+  function selectSource(value: unknown): void {
+    if (value !== "upload" && value !== "url") return;
+    form.setValue("sourceType", value);
     form.clearErrors(["file", "url"]);
   }
 
@@ -138,225 +154,375 @@ export function SummaryForm() {
   }
 
   function trySample(): void {
+    form.setValue("sourceLanguage", "English");
     form.setValue("sourceType", "url");
-    form.setValue("url", "https://static.deepgram.com/examples/Bueller-Life-moves-pretty-fast.wav");
+    form.setValue(
+      "url",
+      "https://static.deepgram.com/examples/Bueller-Life-moves-pretty-fast.wav",
+    );
     void form.handleSubmit((values) => createSummary.mutate(values))();
   }
 
   return (
-    <Card className="overflow-hidden border-border/90 bg-card shadow-[0_24px_70px_-48px_oklch(0.25_0.04_140_/_0.32)]">
-      <div className="grid lg:grid-cols-[minmax(0,1.55fr)_minmax(19rem,0.72fr)]">
-        <CardContent className="p-5 sm:p-8 lg:p-10">
-          <Form {...form}>
-            <form className="space-y-6" noValidate onSubmit={form.handleSubmit((values) => createSummary.mutate(values))}>
-              <FormField
+    <Paper variant="outlined" sx={{ p: { xs: 2.5, sm: 4 } }}>
+      <Box
+        component="form"
+        noValidate
+        onSubmit={form.handleSubmit((values) => createSummary.mutate(values))}
+      >
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "minmax(0, 1fr)",
+              md: "repeat(2, minmax(0, 1fr))",
+            },
+            gap: { xs: 3, md: 5 },
+            alignItems: "start",
+          }}
+        >
+          <Stack
+            component="section"
+            aria-label="Video input"
+            spacing={3}
+            sx={{ minWidth: 0 }}
+          >
+            <ToggleButtonGroup
+              exclusive
+              value={sourceType}
+              onChange={(_, value: unknown) => selectSource(value)}
+              aria-label="Video source"
+              sx={{
+                alignSelf: "flex-start",
+                width: { xs: "100%", sm: "auto" },
+              }}
+            >
+              <ToggleButton
+                value="upload"
+                sx={{
+                  gap: 1,
+                  px: { xs: 1.5, sm: 2.5 },
+                  whiteSpace: "nowrap",
+                  flex: { xs: 1, sm: "initial" },
+                }}
+              >
+                <UploadFileOutlined fontSize="small" />
+                Upload video
+              </ToggleButton>
+              <ToggleButton
+                value="url"
+                sx={{
+                  gap: 1,
+                  px: { xs: 1.5, sm: 2.5 },
+                  whiteSpace: "nowrap",
+                  flex: { xs: 1, sm: "initial" },
+                }}
+              >
+                <LinkOutlined fontSize="small" />
+                Paste a link
+              </ToggleButton>
+            </ToggleButtonGroup>
+
+            {sourceType === "upload" ? (
+              <Box>
+                <Box
+                  component="label"
+                  htmlFor={fileInputId}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    setIsDragging(true);
+                  }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    setIsDragging(false);
+                    handleFile(event.dataTransfer.files[0]);
+                  }}
+                  sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: "100%",
+                    minHeight: { xs: 184, md: 200 },
+                    gap: 1,
+                    p: 3,
+                    border: "1px dashed",
+                    borderColor: form.formState.errors.file
+                      ? "error.main"
+                      : "primary.main",
+                    borderRadius: 2,
+                    bgcolor: isDragging ? "action.selected" : "action.hover",
+                    textAlign: "center",
+                    cursor: "pointer",
+                    "&:hover": { bgcolor: "action.selected" },
+                    "&:focus-within": {
+                      outline: "2px solid",
+                      outlineColor: "primary.main",
+                      outlineOffset: 3,
+                    },
+                  }}
+                >
+                  <UploadFileOutlined
+                    sx={{ fontSize: 32, color: "primary.main", mb: 1 }}
+                  />
+                  <Typography
+                    sx={{
+                      fontWeight: 600,
+                      maxWidth: "100%",
+                      overflowWrap: "anywhere",
+                    }}
+                  >
+                    {fileName ?? "Drop your video here"}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {fileName ? "Choose another file" : "or choose a file"}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ fontFamily: "var(--font-mono)" }}
+                  >
+                    MP4, MOV, WebM · Up to 1 GB
+                  </Typography>
+                  <input
+                    id={fileInputId}
+                    aria-label="Choose a video or audio file"
+                    className="sr-only"
+                    type="file"
+                    accept="video/*,audio/*"
+                    onChange={(event) => handleFile(event.target.files?.[0])}
+                  />
+                </Box>
+                {form.formState.errors.file ? (
+                  <FormHelperText error>
+                    {form.formState.errors.file.message}
+                  </FormHelperText>
+                ) : null}
+              </Box>
+            ) : (
+              <Controller
                 control={form.control}
-                name="sourceType"
-                render={() => (
-                  <FormItem>
-                    <Tabs value={sourceType} onValueChange={selectSource}>
-                      <TabsList className="grid h-11 w-full grid-cols-2 items-stretch rounded-lg border border-border/80 bg-muted/55 p-1 sm:w-96">
-                        <TabsTrigger
-                          className="!h-full min-h-0 py-0 leading-none data-[state=active]:font-semibold data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-border/80"
-                          value="upload"
-                        >
-                          <Upload />Upload video
-                        </TabsTrigger>
-                        <TabsTrigger
-                          className="!h-full min-h-0 py-0 leading-none data-[state=active]:font-semibold data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-border/80"
-                          value="url"
-                        >
-                          <Link />Paste a link
-                        </TabsTrigger>
-                      </TabsList>
-
-                      <TabsContent value="upload" className="mt-5">
-                        <FormField
-                          control={form.control}
-                          name="file"
-                          render={() => (
-                            <FormItem>
-                              <FormControl>
-                                <label
-                                  htmlFor={fileInputId}
-                                  className="grid min-h-48 cursor-pointer place-items-center rounded-xl border border-dashed border-ring/60 bg-accent/5 p-7 text-center transition-[background-color,border-color] hover:border-ring hover:bg-accent/10 focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/30 sm:p-8"
-                                >
-                                  <Input
-                                    id={fileInputId}
-                                    className="sr-only"
-                                    type="file"
-                                    accept="video/*,audio/*"
-                                    onChange={(event) => handleFile(event.target.files?.[0])}
-                                  />
-                                  <span>
-                                    <span className="mx-auto mb-5 grid size-12 place-items-center rounded-xl bg-primary text-primary-foreground">
-                                      {fileName ? <FileVideo className="size-6" /> : <Upload className="size-6" />}
-                                    </span>
-                                    {fileName ? (
-                                      <span className="block max-w-lg truncate font-semibold">{fileName}</span>
-                                    ) : (
-                                      <>
-                                        <span className="block font-semibold">Drop your video here</span>
-                                        <span className="mt-1 block text-sm text-muted-foreground">or choose a file</span>
-                                      </>
-                                    )}
-                                    <span className="mt-3 block font-mono text-xs text-muted-foreground">
-                                      {fileName ? "Choose again to replace this file" : "MP4, MOV, WebM · Up to 1 GB"}
-                                    </span>
-                                  </span>
-                                </label>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </TabsContent>
-
-                      <TabsContent value="url" className="mt-5">
-                        <FormField
-                          control={form.control}
-                          name="url"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Public video URL</FormLabel>
-                              <FormControl><Input type="url" placeholder="https://youtube.com/watch?v=..." {...field} /></FormControl>
-                              <FormDescription>
-                                {field.value && isYouTubeUrl(field.value)
-                                  ? "In live mode, YouTube audio is downloaded securely for transcription."
-                                  : "Use a YouTube link or a publicly accessible video/audio URL."}
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </TabsContent>
-                    </Tabs>
-                  </FormItem>
+                name="url"
+                render={({ field, fieldState }) => (
+                  <TextField
+                    {...field}
+                    label="Video URL"
+                    type="url"
+                    placeholder="https://youtube.com/watch?v=..."
+                    error={Boolean(fieldState.error)}
+                    helperText={
+                      fieldState.error?.message ??
+                      "YouTube or a public video/audio link."
+                    }
+                  />
                 )}
               />
+            )}
 
-              <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                <LockKeyhole className="size-3.5 shrink-0" />
-                Your uploaded video is deleted after processing.
-              </p>
+            <Controller
+              control={form.control}
+              name="sourceLanguage"
+              render={({ field, fieldState }) => (
+                <TextField
+                  {...field}
+                  select
+                  label="Video language"
+                  error={Boolean(fieldState.error)}
+                  helperText={
+                    fieldState.error?.message ??
+                    "Choose the spoken language. The transcript stays in that language."
+                  }
+                >
+                  {SUMMARY_LANGUAGES.map((language) => (
+                    <MenuItem key={language} value={language}>
+                      {language}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              )}
+            />
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{ color: "text.secondary", alignItems: "center" }}
+            >
+              <LockOutlined sx={{ fontSize: 16 }} />
+              <Typography variant="caption">
+                Media is deleted after successful processing. Failed-job media
+                is available for retries for 24 hours. Deleting the job removes
+                its retained media.
+              </Typography>
+            </Stack>
+          </Stack>
+          <Stack
+            component="section"
+            aria-label="Summary preferences"
+            spacing={3}
+            sx={{ minWidth: 0 }}
+          >
+            {storageError ? (
+              <Alert severity="warning">{storageError}</Alert>
+            ) : null}
+            <Stack
+              direction="row"
+              sx={{
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 1,
+              }}
+            >
+              <Typography variant="body2" color="text.secondary">
+                {viewerProfile
+                  ? "Using your saved background, knowledge and goals."
+                  : "Add your background and goals for a tailored summary."}
+              </Typography>
+              <Button
+                component={Link}
+                to="/profile"
+                size="small"
+                sx={{ flexShrink: 0 }}
+              >
+                {viewerProfile ? "Edit profile" : "Set up profile"}
+              </Button>
+            </Stack>
+            <Controller
+              control={form.control}
+              name="expectation"
+              render={({ field, fieldState }) => (
+                <TextField
+                  {...field}
+                  multiline
+                  minRows={3}
+                  label="Your question (optional)"
+                  placeholder="e.g. Is this worth watching for a backend developer?"
+                  error={Boolean(fieldState.error)}
+                  slotProps={{
+                    htmlInput: {
+                      maxLength: MAX_EXPECTATION_LENGTH,
+                      dir: "auto",
+                    },
+                  }}
+                  helperText={
+                    <Box
+                      component="span"
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 2,
+                      }}
+                    >
+                      <span>
+                        {fieldState.error?.message ??
+                          "We'll prioritize this in your summary."}
+                      </span>
+                      <span>
+                        {expectation.length} / {MAX_EXPECTATION_LENGTH}
+                      </span>
+                    </Box>
+                  }
+                />
+              )}
+            />
 
-              <FormField
-                control={form.control}
-                name="expectation"
-                render={({ field }) => (
-                  <FormItem>
-                    <div className="flex items-center justify-between gap-4">
-                      <FormLabel>Anything specific you want to know?</FormLabel>
-                      <span className="text-xs text-muted-foreground">Optional</span>
-                    </div>
-                    <FormControl>
-                      <Textarea
-                        rows={3}
-                        maxLength={MAX_EXPECTATION_LENGTH}
-                        placeholder="e.g. What are the main arguments? Is this worth watching for a backend developer?"
-                        {...field}
-                      />
-                    </FormControl>
-                    <div className="flex justify-between gap-4">
-                      <FormDescription>We’ll prioritize this in your summary.</FormDescription>
-                      <span className="text-xs text-muted-foreground">{expectation.length} / {MAX_EXPECTATION_LENGTH}</span>
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <details className="group pt-1">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-lg py-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground [&::-webkit-details-marker]:hidden">
+            <Accordion>
+              <AccordionSummary
+                expandIcon={<ExpandMore />}
+                aria-controls="advanced-options-content"
+                id="advanced-options-heading"
+              >
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
                   Advanced options
-                  <span className="text-xs transition-transform group-open:rotate-180" aria-hidden="true">⌄</span>
-                </summary>
-                <div className="mt-3 grid items-start gap-5 border-t pt-5 sm:grid-cols-2">
-                  <FormField
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails id="advanced-options-content">
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+                    gap: 3,
+                  }}
+                >
+                  <Controller
                     control={form.control}
                     name="language"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Summary language</FormLabel>
-                        <Select value={field.value} onValueChange={field.onChange}>
-                          <FormControl><SelectTrigger className="w-full"><SelectValue /></SelectTrigger></FormControl>
-                          <SelectContent>
-                            {SUMMARY_LANGUAGES.map((language) => <SelectItem key={language} value={language}>{language}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
+                    render={({ field, fieldState }) => (
+                      <TextField
+                        {...field}
+                        select
+                        label="Summary language"
+                        error={Boolean(fieldState.error)}
+                        helperText={
+                          fieldState.error?.message ??
+                          "Written summary language; independent of the video."
+                        }
+                      >
+                        {SUMMARY_LANGUAGES.map((language) => (
+                          <MenuItem key={language} value={language}>
+                            {language}
+                          </MenuItem>
+                        ))}
+                      </TextField>
                     )}
                   />
-
-                  <FormField
+                  <Controller
                     control={form.control}
                     name="depth"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Summary depth</FormLabel>
-                        <Select value={field.value} onValueChange={field.onChange}>
-                          <FormControl><SelectTrigger className="w-full"><SelectValue /></SelectTrigger></FormControl>
-                          <SelectContent>
-                            <SelectItem value="quick">Quick read</SelectItem>
-                            <SelectItem value="detailed">Detailed</SelectItem>
-                            <SelectItem value="study">Study notes</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormDescription>{depthDescriptions[depth]}</FormDescription>
-                        <FormMessage />
-                      </FormItem>
+                    render={({ field, fieldState }) => (
+                      <TextField
+                        {...field}
+                        select
+                        label="Summary depth"
+                        error={Boolean(fieldState.error)}
+                        helperText={
+                          fieldState.error?.message ?? depthDescriptions[depth]
+                        }
+                      >
+                        <MenuItem value="quick">Quick read</MenuItem>
+                        <MenuItem value="detailed">Detailed</MenuItem>
+                        <MenuItem value="study">Study notes</MenuItem>
+                      </TextField>
                     )}
                   />
-                </div>
-              </details>
+                </Box>
+              </AccordionDetails>
+            </Accordion>
 
-              {createSummary.isError ? (
-                <Alert variant="destructive">
-                  <AlertTitle>Could not start the summary</AlertTitle>
-                  <AlertDescription>{getErrorMessage(createSummary.error)}</AlertDescription>
-                </Alert>
-              ) : null}
+            {createSummary.isError ? (
+              <Alert severity="error">
+                {getErrorMessage(createSummary.error)}
+              </Alert>
+            ) : null}
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <Button type="submit" size="lg" className="w-full sm:w-auto sm:min-w-52" disabled={createSummary.isPending}>
-                  {createSummary.isPending ? <><LoaderCircle className="animate-spin motion-reduce:animate-none" />Starting</> : "Create summary"}
-                </Button>
-                <button
-                  type="button"
-                  className="inline-flex items-center justify-center gap-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
-                  onClick={trySample}
-                  disabled={createSummary.isPending}
-                >
-                  No video handy? <span className="font-semibold text-foreground">Try a sample →</span>
-                </button>
-              </div>
-              <p className="flex items-start gap-2 text-sm leading-6 text-muted-foreground">
-                <Clock3 className="mt-1 size-4 shrink-0" />
-                Quick summaries can still take several minutes. You can follow progress from your library.
-              </p>
-            </form>
-          </Form>
-        </CardContent>
-
-        <aside className="border-t bg-muted/45 p-6 lg:border-l lg:border-t-0 lg:p-9" aria-labelledby="outcomes-title">
-          <div className="mb-8">
-            <h2 id="outcomes-title" className="text-xl font-bold tracking-[-0.02em]">You’ll get</h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">A focused way to decide what deserves your time.</p>
-          </div>
-          <div className="grid gap-6">
-            {outcomeItems.map((item) => (
-              <div key={item.title} className="grid grid-cols-[2.5rem_1fr] gap-3">
-                <span className="grid size-10 place-items-center rounded-lg bg-card/70"><item.icon className="size-4" /></span>
-                <div>
-                  <p className="font-semibold">{item.title}</p>
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">{item.detail}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </aside>
-      </div>
-    </Card>
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1.5}
+              sx={{ alignItems: { sm: "center" } }}
+            >
+              <Button
+                type="submit"
+                variant="contained"
+                size="large"
+                disabled={createSummary.isPending}
+                startIcon={
+                  createSummary.isPending ? (
+                    <CircularProgress size={18} color="inherit" />
+                  ) : undefined
+                }
+              >
+                {createSummary.isPending ? "Starting…" : "Create summary"}
+              </Button>
+              <Button
+                variant="text"
+                onClick={trySample}
+                disabled={createSummary.isPending}
+              >
+                Try a sample
+              </Button>
+            </Stack>
+          </Stack>
+        </Box>
+      </Box>
+    </Paper>
   );
 }

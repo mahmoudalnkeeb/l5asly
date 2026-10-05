@@ -12,7 +12,9 @@ import {
 
 const errorResponseSchema = z.object({ error: apiErrorSchema });
 const jobResponseSchema = z.object({ data: summaryJobSchema });
-const summaryListResponseSchema = z.object({ data: z.array(summaryListItemSchema) });
+const summaryListResponseSchema = z.object({
+  data: z.array(summaryListItemSchema),
+});
 
 export class ApiClientError extends Error {
   readonly code: string;
@@ -40,10 +42,12 @@ async function request(path: string, init?: RequestInit): Promise<unknown> {
   } catch (error) {
     throw new ApiClientError({
       code: "NETWORK_ERROR",
-      message: "The server could not be reached. Check that the API is running.",
+      message:
+        "The server could not be reached. Check that the API is running.",
     });
   }
 
+  if (response.ok && response.status === 204) return undefined;
   const body: unknown = await response.json().catch(() => null);
   if (!response.ok) {
     const parsedError = errorResponseSchema.safeParse(body);
@@ -64,14 +68,17 @@ function parseResponse<T>(schema: z.ZodType<T>, body: unknown): T {
   if (!parsed.success) {
     throw new ApiClientError({
       code: "INVALID_RESPONSE",
-      message: "The server returned a response this app could not read. Please try again.",
+      message:
+        "The server returned a response this app could not read. Please try again.",
     });
   }
 
   return parsed.data;
 }
 
-export async function createUrlSummary(input: CreateUrlSummaryInput): Promise<SummaryJob> {
+export async function createUrlSummary(
+  input: CreateUrlSummaryInput,
+): Promise<SummaryJob> {
   const body = await request("/api/summaries/url", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -88,6 +95,12 @@ export async function createUploadSummary(input: {
   const form = new FormData();
   form.append("video", input.file);
   form.append("language", input.options.language);
+  if (input.options.sourceLanguage) {
+    form.append("sourceLanguage", input.options.sourceLanguage);
+  }
+  if (input.options.viewerProfile) {
+    form.append("viewerProfile", JSON.stringify(input.options.viewerProfile));
+  }
   form.append("depth", input.options.depth);
   if (input.options.expectation) {
     form.append("expectation", input.options.expectation);
@@ -112,9 +125,12 @@ export async function listSummaries(): Promise<SummaryListItem[]> {
 }
 
 export async function cancelSummary(summaryId: string): Promise<SummaryJob> {
-  const body = await request(`/api/summaries/${encodeURIComponent(summaryId)}/cancel`, {
-    method: "POST",
-  });
+  const body = await request(
+    `/api/summaries/${encodeURIComponent(summaryId)}/cancel`,
+    {
+      method: "POST",
+    },
+  );
   return parseResponse(jobResponseSchema, body).data;
 }
 
@@ -123,4 +139,26 @@ export function getErrorMessage(error: unknown): string {
     return error.message;
   }
   return "Something went wrong. Please try again.";
+}
+
+export async function retrySummary(
+  summaryId: string,
+  file?: File,
+): Promise<SummaryJob> {
+  let body: FormData | undefined;
+  if (file) {
+    body = new FormData();
+    body.append("video", file);
+  }
+  const response = await request(
+    `/api/summaries/${encodeURIComponent(summaryId)}/retry`,
+    { method: "POST", body },
+  );
+  return parseResponse(jobResponseSchema, response).data;
+}
+
+export async function deleteSummary(summaryId: string): Promise<void> {
+  await request(`/api/summaries/${encodeURIComponent(summaryId)}`, {
+    method: "DELETE",
+  });
 }

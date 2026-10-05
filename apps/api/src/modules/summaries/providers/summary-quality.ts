@@ -1,6 +1,15 @@
-import type { RecommendedMoment, SummaryDepth, SummaryNote, SummarySection } from "@l5sly/contracts";
+import type {
+  PersonalizedGuidance,
+  RecommendedMoment,
+  SummaryNote,
+  SummarySection,
+} from "@l5sly/contracts";
 
-import type { GeneratedSummary, SummaryGenerationInput } from "./provider-contracts.js";
+import type {
+  GeneratedSummary,
+  SummaryGenerationInput,
+} from "./provider-contracts.js";
+import { getSummaryOutputLimits } from "./summary-prompt.js";
 
 interface DraftRecommendedMoment extends RecommendedMoment {
   evidenceText?: string;
@@ -14,34 +23,28 @@ interface SummaryDraft {
   sections: SummarySection[];
   notes: SummaryNote[];
   recommendedMoments: DraftRecommendedMoment[];
+  personalizedGuidance?: PersonalizedGuidance;
 }
-
-interface DepthLimits {
-  sections: number;
-  notes: number;
-  moments: number;
-}
-
-const DEPTH_LIMITS: Record<SummaryDepth, DepthLimits> = {
-  quick: { sections: 3, notes: 5, moments: 4 },
-  detailed: { sections: 6, notes: 8, moments: 6 },
-  study: { sections: 8, notes: 10, moments: 8 },
-};
 
 export function finalizeGeneratedSummary(
   draft: SummaryDraft,
   input: SummaryGenerationInput,
 ): GeneratedSummary {
-  const limits = DEPTH_LIMITS[input.depth];
+  const limits = getSummaryOutputLimits(input);
 
   return {
     title: draft.title,
+    personalizedGuidance: draft.personalizedGuidance,
     overview: draft.overview,
     viewerAnswer: draft.viewerAnswer?.trim() || draft.overview,
     caveats: uniqueStrings(draft.caveats).slice(0, 4),
-    sections: selectEvenly(draft.sections, limits.sections),
-    notes: selectEvenly(draft.notes, limits.notes),
-    recommendedMoments: groundMoments(draft.recommendedMoments, input, limits.moments),
+    sections: draft.sections.slice(0, limits.sections),
+    notes: draft.notes.slice(0, limits.notes),
+    recommendedMoments: groundMoments(
+      draft.recommendedMoments,
+      input,
+      limits.moments,
+    ),
   };
 }
 
@@ -55,15 +58,23 @@ function groundMoments(
   }
 
   const grounded: RecommendedMoment[] = [];
-  const orderedMoments = [...moments].sort((left, right) => left.startSeconds - right.startSeconds);
+  const orderedMoments = [...moments].sort(
+    (left, right) => left.startSeconds - right.startSeconds,
+  );
 
   for (const moment of orderedMoments) {
     if (!moment.evidenceText) {
       continue;
     }
 
-    const anchoredStart = findEvidenceStart(moment.evidenceText, input.transcript.segments);
-    if (anchoredStart === undefined || anchoredStart > input.transcript.durationSeconds) {
+    const anchoredStart = findEvidenceStart(
+      moment.evidenceText,
+      input.transcript.segments,
+    );
+    if (
+      anchoredStart === undefined ||
+      anchoredStart > input.transcript.durationSeconds
+    ) {
       continue;
     }
 
@@ -91,9 +102,9 @@ function findEvidenceStart(
     return undefined;
   }
 
-  return segments.find((segment) => (
-    normalizeForMatching(segment.text).includes(normalizedEvidence)
-  ))?.startSeconds;
+  return segments.find((segment) =>
+    normalizeForMatching(segment.text).includes(normalizedEvidence),
+  )?.startSeconds;
 }
 
 function normalizeForMatching(value: string): string {

@@ -1,4 +1,14 @@
-import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { CssBaseline, useMediaQuery } from "@mui/material";
+import { ThemeProvider as MaterialThemeProvider } from "@mui/material/styles";
+import { createMaterialTheme } from "@/components/material-theme";
 
 const THEMES = ["dark", "light", "system"] as const;
 
@@ -15,7 +25,9 @@ interface ThemeProviderValue {
   setTheme: (theme: Theme) => void;
 }
 
-const ThemeProviderContext = createContext<ThemeProviderValue | undefined>(undefined);
+const ThemeProviderContext = createContext<ThemeProviderValue | undefined>(
+  undefined,
+);
 
 function isTheme(value: string | null): value is Theme {
   return value !== null && THEMES.some((theme) => theme === value);
@@ -36,9 +48,15 @@ export function ThemeProvider({
 }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<Theme>(() => {
     const storedTheme =
-      window.localStorage.getItem(storageKey) ?? window.localStorage.getItem("l5sly-theme");
+      window.localStorage.getItem(storageKey) ??
+      window.localStorage.getItem("l5sly-theme");
     return isTheme(storedTheme) ? storedTheme : defaultTheme;
   });
+  const prefersDark = useMediaQuery("(prefers-color-scheme: dark)");
+  const materialTheme = useMemo(
+    () => createMaterialTheme(resolveTheme(theme, prefersDark)),
+    [theme, prefersDark],
+  );
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -72,7 +90,14 @@ export function ThemeProvider({
     [storageKey, theme],
   );
 
-  return <ThemeProviderContext.Provider value={value}>{children}</ThemeProviderContext.Provider>;
+  return (
+    <ThemeProviderContext.Provider value={value}>
+      <MaterialThemeProvider theme={materialTheme}>
+        <CssBaseline />
+        {children}
+      </MaterialThemeProvider>
+    </ThemeProviderContext.Provider>
+  );
 }
 
 export function useTheme(): ThemeProviderValue {

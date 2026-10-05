@@ -2,7 +2,7 @@ import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import { AppShell } from "@/components/app-shell";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Container, Skeleton } from "@mui/material";
 
 const CreateSummaryPage = lazy(async () => {
   const page = await import("@/pages/create-summary-page");
@@ -19,21 +19,27 @@ const SummaryPage = lazy(async () => {
   return { default: page.SummaryPage };
 });
 
+const ProfilePage = lazy(async () => {
+  const page = await import("@/pages/profile-page");
+  return { default: page.ProfilePage };
+});
+
 export function App() {
   return (
     <AppShell>
       <Suspense
         fallback={
-          <main className="mx-auto w-full max-w-6xl px-5 py-12 sm:px-8">
-            <Skeleton className="h-10 w-full max-w-xl" />
-            <Skeleton className="mt-4 h-5 w-full max-w-md" />
-            <Skeleton className="mt-12 h-96 w-full rounded-2xl" />
-          </main>
+          <Container maxWidth="lg" sx={{ py: 5 }}>
+            <Skeleton height={56} width="75%" />
+            <Skeleton height={28} width="50%" />
+            <Skeleton variant="rounded" height={360} sx={{ mt: 4 }} />
+          </Container>
         }
       >
         <Routes>
           <Route path="/" element={<CreateSummaryPage />} />
           <Route path="/library" element={<LibraryPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
           <Route path="/summaries/:summaryId" element={<SummaryPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

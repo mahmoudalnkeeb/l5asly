@@ -2,7 +2,7 @@ import { openAsBlob } from "node:fs";
 
 import { z } from "zod";
 
-import type { TranscriptSegment } from "@l5sly/contracts";
+import type { SummaryLanguage, TranscriptSegment } from "@l5sly/contracts";
 
 import { ProviderError, ProviderTimeoutError } from "../../../errors.js";
 import type {
@@ -14,28 +14,32 @@ import { isTimeoutError } from "./provider-timeout.js";
 import { compactTranscriptSegments } from "./transcript-segments.js";
 
 const deepgramResponseSchema = z.object({
-  metadata: z.object({
-    duration: z.number().nonnegative().optional(),
-  }).optional(),
+  metadata: z
+    .object({
+      duration: z.number().nonnegative().optional(),
+    })
+    .optional(),
   results: z.object({
     channels: z.array(
       z.object({
+        detected_language: z.string().optional(),
         alternatives: z.array(
           z.object({
             transcript: z.string(),
-            detected_language: z.string().optional(),
           }),
         ),
       }),
     ),
-    utterances: z.array(
-      z.object({
-        start: z.number().nonnegative(),
-        end: z.number().nonnegative(),
-        transcript: z.string().min(1),
-        speaker: z.number().int().nonnegative().optional(),
-      }),
-    ).optional(),
+    utterances: z
+      .array(
+        z.object({
+          start: z.number().nonnegative(),
+          end: z.number().nonnegative(),
+          transcript: z.string().min(1),
+          speaker: z.number().int().nonnegative().optional(),
+        }),
+      )
+      .optional(),
   }),
 });
 
@@ -47,13 +51,18 @@ export class DeepgramTranscriptionProvider implements TranscriptionProvider {
     },
   ) {}
 
-  async transcribe(input: MediaInput): Promise<TranscriptionResult> {
+  async transcribe(
+    input: MediaInput,
+    language: SummaryLanguage,
+  ): Promise<TranscriptionResult> {
+    const languageCode = language === "Arabic" ? "ar" : "en";
     const endpoint = new URL("https://api.deepgram.com/v1/listen");
     endpoint.searchParams.set("model", "nova-3");
     endpoint.searchParams.set("smart_format", "true");
     endpoint.searchParams.set("punctuate", "true");
     endpoint.searchParams.set("utterances", "true");
-    endpoint.searchParams.set("detect_language", "true");
+    // Arabic is supported by Nova-3, but not by Deepgram's language detector.
+    endpoint.searchParams.set("language", languageCode);
 
     const request = await this.createRequest(input);
     let response: Response;
@@ -70,7 +79,11 @@ export class DeepgramTranscriptionProvider implements TranscriptionProvider {
       });
     } catch (error) {
       if (isTimeoutError(error)) {
-        throw new ProviderTimeoutError("Deepgram", this.options.timeoutMs, error);
+        throw new ProviderTimeoutError(
+          "Deepgram",
+          this.options.timeoutMs,
+          error,
+        );
       }
 
       throw new ProviderError("Deepgram could not be reached.", error);
@@ -78,31 +91,51 @@ export class DeepgramTranscriptionProvider implements TranscriptionProvider {
 
     if (!response.ok) {
       const responseText = await response.text();
-      throw new ProviderError(`Deepgram rejected the media with status ${response.status}: ${responseText.slice(0, 240)}`);
+      throw new ProviderError(
+        `Deepgram rejected the media with status ${response.status}: ${responseText.slice(0, 240)}`,
+      );
     }
 
     const parsed = deepgramResponseSchema.safeParse(await response.json());
     if (!parsed.success) {
-      throw new ProviderError("Deepgram returned an unexpected transcription response.", parsed.error);
+      throw new ProviderError(
+        "Deepgram returned an unexpected transcription response.",
+        parsed.error,
+      );
     }
 
-    const alternative = parsed.data.results.channels[0]?.alternatives[0];
+    const channel = parsed.data.results.channels[0];
+    const alternative = channel?.alternatives[0];
     if (!alternative?.transcript.trim()) {
       throw new ProviderError("No speech was detected in the supplied media.");
     }
+    if (
+      language === "Arabic" &&
+      !/\p{Script=Arabic}/u.test(alternative.transcript)
+    ) {
+      throw new ProviderError(
+        "Arabic transcription returned no Arabic speech. Check the video language and try again; no summary was generated from the incomplete transcript.",
+      );
+    }
 
     const durationSeconds = parsed.data.metadata?.duration ?? 0;
-    const segments = this.mapSegments(parsed.data.results.utterances, alternative.transcript, durationSeconds);
+    const segments = this.mapSegments(
+      parsed.data.results.utterances,
+      alternative.transcript,
+      durationSeconds,
+    );
 
     return {
       text: alternative.transcript,
       segments,
       durationSeconds,
-      detectedLanguage: alternative.detected_language ?? "unknown",
+      detectedLanguage: channel?.detected_language ?? languageCode,
     };
   }
 
-  private async createRequest(input: MediaInput): Promise<{ body: BodyInit; contentType: string }> {
+  private async createRequest(
+    input: MediaInput,
+  ): Promise<{ body: BodyInit; contentType: string }> {
     if (input.kind === "url") {
       return {
         body: JSON.stringify({ url: input.url }),
@@ -122,7 +155,9 @@ export class DeepgramTranscriptionProvider implements TranscriptionProvider {
     durationSeconds: number,
   ): TranscriptSegment[] {
     if (!utterances?.length) {
-      return [{ startSeconds: 0, endSeconds: durationSeconds, text: transcript }];
+      return [
+        { startSeconds: 0, endSeconds: durationSeconds, text: transcript },
+      ];
     }
 
     return compactTranscriptSegments(

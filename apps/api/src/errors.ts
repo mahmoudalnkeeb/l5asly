@@ -51,3 +51,14 @@ export class ProviderTimeoutError extends AppError {
     });
   }
 }
+
+export class SummaryFormatError extends AppError {
+  constructor(message: string, details: Record<string, string[]>) {
+    super({
+      message,
+      statusCode: 502,
+      code: "SUMMARY_INVALID_FORMAT",
+      details,
+    });
+  }
+}

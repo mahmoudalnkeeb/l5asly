@@ -35,47 +35,53 @@ export function createSummaryRouter(options: {
     response.status(202).json(body);
   });
 
-  router.post("/upload", options.upload.single("video"), async (request, response) => {
-    const file = request.file;
-    if (!file) {
-      throw new AppError({
-        message: "Choose a video or audio file to continue.",
-        statusCode: 400,
-        code: "FILE_REQUIRED",
-      });
-    }
-
-    try {
-      const detectedType = await fileTypeFromFile(file.path);
-      const mimeType = detectedType?.mime ?? file.mimetype;
-      if (!mimeType.startsWith("video/") && !mimeType.startsWith("audio/")) {
+  router.post(
+    "/upload",
+    options.upload.single("video"),
+    async (request, response) => {
+      const file = request.file;
+      if (!file) {
         throw new AppError({
-          message: "The uploaded file must contain video or audio.",
-          statusCode: 415,
-          code: "UNSUPPORTED_MEDIA_TYPE",
+          message: "Choose a video or audio file to continue.",
+          statusCode: 400,
+          code: "FILE_REQUIRED",
         });
       }
 
-      const parsedOptions = summaryOptionsSchema.parse({
-        language: request.body.language,
-        depth: request.body.depth,
-        expectation: request.body.expectation,
-      });
-      const job = options.summaryService.createFromUpload({
-        originalName: file.originalname,
-        path: file.path,
-        mimeType,
-        options: parsedOptions,
-      });
-      options.jobRunner.enqueue(job.id);
+      try {
+        const detectedType = await fileTypeFromFile(file.path);
+        const mimeType = detectedType?.mime ?? file.mimetype;
+        if (!mimeType.startsWith("video/") && !mimeType.startsWith("audio/")) {
+          throw new AppError({
+            message: "The uploaded file must contain video or audio.",
+            statusCode: 415,
+            code: "UNSUPPORTED_MEDIA_TYPE",
+          });
+        }
 
-      const body: ApiResponse<SummaryJob> = { data: job };
-      response.status(202).json(body);
-    } catch (error) {
-      await unlink(file.path).catch(() => undefined);
-      throw error;
-    }
-  });
+        const parsedOptions = summaryOptionsSchema.parse({
+          language: request.body.language,
+          sourceLanguage: request.body.sourceLanguage,
+          viewerProfile: parseProfileField(request.body.viewerProfile),
+          depth: request.body.depth,
+          expectation: request.body.expectation,
+        });
+        const job = options.summaryService.createFromUpload({
+          originalName: file.originalname,
+          path: file.path,
+          mimeType,
+          options: parsedOptions,
+        });
+        options.jobRunner.enqueue(job.id);
+
+        const body: ApiResponse<SummaryJob> = { data: job };
+        response.status(202).json(body);
+      } catch (error) {
+        await unlink(file.path).catch(() => undefined);
+        throw error;
+      }
+    },
+  );
 
   router.get("/", (_request, response) => {
     const summaries = options.summaryService.listRecent();
@@ -97,5 +103,90 @@ export function createSummaryRouter(options: {
     response.json(body);
   });
 
+  router.post(
+    "/:summaryId/retry",
+    options.upload.single("video"),
+    async (request, response) => {
+      const file = request.file;
+      try {
+        const id = summaryIdSchema.parse(request.params.summaryId);
+        if (options.jobRunner.isProcessing(id)) {
+          throw new AppError({
+            message:
+              "The previous attempt is finishing cleanup. Try again in a moment.",
+            statusCode: 409,
+            code: "JOB_BUSY",
+          });
+        }
+        let upload: { path: string; mimeType: string } | undefined;
+        if (file) {
+          const detectedType = await fileTypeFromFile(file.path);
+          const mimeType = detectedType?.mime ?? file.mimetype;
+          if (
+            !mimeType.startsWith("video/") &&
+            !mimeType.startsWith("audio/")
+          ) {
+            throw new AppError({
+              message: "Select a video or audio file.",
+              statusCode: 415,
+              code: "UNSUPPORTED_MEDIA_TYPE",
+            });
+          }
+          upload = { path: file.path, mimeType };
+        }
+        const job = await options.summaryService.retry(id, upload);
+        options.jobRunner.enqueue(id);
+        const body: ApiResponse<SummaryJob> = { data: job };
+        response.status(202).json(body);
+      } catch (error) {
+        if (file)
+          await unlink(file.path).catch((cleanupError: unknown) => {
+            if (
+              cleanupError instanceof Error &&
+              "code" in cleanupError &&
+              cleanupError.code === "ENOENT"
+            )
+              return;
+            throw cleanupError;
+          });
+        throw error;
+      }
+    },
+  );
+
+  router.delete("/:summaryId", async (request, response) => {
+    const id = summaryIdSchema.parse(request.params.summaryId);
+    if (options.jobRunner.isProcessing(id)) {
+      throw new AppError({
+        message: "Wait for the current attempt to finish before deleting it.",
+        statusCode: 409,
+        code: "JOB_BUSY",
+      });
+    }
+    await options.summaryService.delete(id);
+    response.status(204).end();
+  });
+
   return router;
+}
+
+function parseProfileField(value: unknown): unknown {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string") {
+    throw new AppError({
+      message: "The viewer profile must be valid JSON.",
+      statusCode: 400,
+      code: "INVALID_PROFILE",
+    });
+  }
+  try {
+    const profile: unknown = JSON.parse(value);
+    return profile;
+  } catch {
+    throw new AppError({
+      message: "The viewer profile must be valid JSON.",
+      statusCode: 400,
+      code: "INVALID_PROFILE",
+    });
+  }
 }

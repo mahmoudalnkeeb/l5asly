@@ -14,7 +14,7 @@ const server = runtime.app.listen(config.port, () => {
 function shutdown(signal: string): void {
   logger.info({ signal }, "Shutting down l5sly API");
   server.close(() => {
-    runtime.database.close();
+    runtime.close();
     process.exit(0);
   });
 }

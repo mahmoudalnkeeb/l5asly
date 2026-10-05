@@ -1,16 +1,34 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, Navigate, useParams } from "react-router-dom";
-import { toast } from "sonner";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { useNotification } from "@/components/notifications";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { ProcessingState, ProcessingStateSkeleton } from "@/features/summaries/processing-state";
+import {
+  Alert,
+  AlertTitle,
+  Button,
+  Container,
+  Stack,
+  Typography,
+} from "@mui/material";
+import {
+  ProcessingState,
+  ProcessingStateSkeleton,
+} from "@/features/summaries/processing-state";
 import { SummaryResult } from "@/features/summaries/summary-result";
-import { cancelSummary, getErrorMessage, getSummary } from "@/lib/api-client";
+import { FailedSummaryState } from "@/features/summaries/failed-summary-state";
+import {
+  cancelSummary,
+  deleteSummary,
+  getErrorMessage,
+  getSummary,
+  retrySummary,
+} from "@/lib/api-client";
 
 export function SummaryPage() {
   const { summaryId } = useParams();
   const queryClient = useQueryClient();
+  const notify = useNotification();
+  const navigate = useNavigate();
   const summaryQuery = useQuery({
     queryKey: ["summary", summaryId],
     queryFn: () => getSummary(summaryId ?? ""),
@@ -24,9 +42,40 @@ export function SummaryPage() {
     mutationFn: () => cancelSummary(summaryId ?? ""),
     onSuccess: (job) => {
       queryClient.setQueryData(["summary", summaryId], job);
-      toast.success("Processing cancelled.");
+      notify({ severity: "success", message: "Processing cancelled." });
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) =>
+      notify({ severity: "error", message: getErrorMessage(error) }),
+  });
+  const retryMutation = useMutation({
+    mutationFn: (file?: File) => retrySummary(summaryId ?? "", file),
+    onSuccess: (job) => {
+      queryClient.setQueryData(["summary", summaryId], job);
+      void queryClient.invalidateQueries({ queryKey: ["summaries"] });
+      notify({
+        severity: "success",
+        message: "Retry queued. Available checkpoints will be reused.",
+      });
+    },
+    onError: (error) =>
+      notify({ severity: "error", message: getErrorMessage(error) }),
+  });
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteSummary(summaryId ?? ""),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["summaries"] });
+      navigate("/library", { replace: true });
+      queryClient.removeQueries({
+        queryKey: ["summary", summaryId],
+        exact: true,
+      });
+      notify({
+        severity: "success",
+        message: "Job and saved processing data deleted.",
+      });
+    },
+    onError: (error) =>
+      notify({ severity: "error", message: getErrorMessage(error) }),
   });
 
   if (!summaryId) {
@@ -37,55 +86,118 @@ export function SummaryPage() {
     return <ProcessingStateSkeleton />;
   }
 
-  if (summaryQuery.isError) {
+  if (summaryQuery.isError && !summaryQuery.data) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6 sm:py-24">
-        <h1 className="text-3xl font-bold tracking-[-0.04em]">This summary could not be loaded</h1>
-        <p className="mt-3 text-muted-foreground">The job may still be available. Try loading it again before starting over.</p>
-        <Alert className="mt-6" variant="destructive">
+      <Container maxWidth="sm" sx={{ py: 6 }}>
+        <Typography variant="h1">This summary could not be loaded</Typography>
+        <Typography color="text.secondary" sx={{ mt: 2 }}>
+          Try loading it again before starting over.
+        </Typography>
+        <Alert sx={{ mt: 3 }} severity="error">
           <AlertTitle>Could not load this summary</AlertTitle>
-          <AlertDescription>{getErrorMessage(summaryQuery.error)}</AlertDescription>
+          {getErrorMessage(summaryQuery.error)}
         </Alert>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Button onClick={() => void summaryQuery.refetch()}>Try again</Button>
-          <Button variant="outline" asChild><Link to="/library">Back to library</Link></Button>
-        </div>
-      </div>
+        <Stack
+          direction="row"
+          spacing={2}
+          sx={{ mt: 3, flexWrap: "wrap", rowGap: 2 }}
+        >
+          <Button
+            variant="contained"
+            onClick={() => void summaryQuery.refetch()}
+          >
+            Try again
+          </Button>
+          <Button variant="outlined" component={Link} to="/library">
+            Back to library
+          </Button>
+        </Stack>
+      </Container>
     );
   }
 
   const job = summaryQuery.data;
+  if (!job) return <ProcessingStateSkeleton />;
   if (job.status === "queued" || job.status === "processing") {
-    return <ProcessingState job={job} isCancelling={cancelMutation.isPending} onCancel={() => cancelMutation.mutate()} />;
+    return (
+      <ProcessingState
+        job={job}
+        isCancelling={cancelMutation.isPending}
+        onCancel={() => cancelMutation.mutate()}
+        hasConnectionError={summaryQuery.isRefetchError}
+      />
+    );
   }
 
-  if (job.status === "failed" || job.status === "cancelled") {
+  if (job.status === "failed") {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6 sm:py-24">
-        <p className="font-mono text-xs text-muted-foreground">{job.source.name}</p>
-        <h1 className="mt-3 text-3xl font-bold tracking-[-0.04em]">
-          {job.status === "failed" ? "This video could not be processed" : "This job was cancelled"}
-        </h1>
-        <Alert className="mt-6" variant={job.status === "failed" ? "destructive" : "default"}>
-          <AlertTitle>{job.status === "failed" ? "Processing failed" : "Processing cancelled"}</AlertTitle>
-          <AlertDescription>{job.error ?? "You can return to the form and try again."}</AlertDescription>
+      <FailedSummaryState
+        job={job}
+        isRetrying={retryMutation.isPending}
+        isDeleting={deleteMutation.isPending}
+        onRetry={(file) => retryMutation.mutate(file)}
+        onDelete={() => deleteMutation.mutate()}
+      />
+    );
+  }
+
+  if (job.status === "cancelled") {
+    return (
+      <Container maxWidth="sm" sx={{ py: 6 }}>
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ fontFamily: "var(--font-mono)", overflowWrap: "anywhere" }}
+        >
+          {job.source.name}
+        </Typography>
+        <Typography variant="h1" sx={{ mt: 2 }}>
+          This job was cancelled
+        </Typography>
+        <Alert sx={{ mt: 3 }} severity="info">
+          <AlertTitle>Processing cancelled</AlertTitle>
+          {job.error ?? "You can return to the form and try again."}
         </Alert>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Button asChild><Link to="/">Start a new summary</Link></Button>
-          <Button variant="outline" asChild><Link to="/library">Back to library</Link></Button>
-        </div>
-      </div>
+        <Stack
+          direction="row"
+          spacing={2}
+          sx={{ mt: 3, flexWrap: "wrap", rowGap: 2 }}
+        >
+          <Button variant="contained" component={Link} to="/">
+            Start a new summary
+          </Button>
+          <Button variant="outlined" component={Link} to="/library">
+            Back to library
+          </Button>
+        </Stack>
+      </Container>
     );
   }
 
   if (!job.result) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6 sm:py-24">
-        <Alert variant="destructive"><AlertTitle>Result unavailable</AlertTitle><AlertDescription>The server completed this job without a result.</AlertDescription></Alert>
-        <Button className="mt-6" variant="outline" asChild><Link to="/library">Back to library</Link></Button>
-      </div>
+      <Container maxWidth="sm" sx={{ py: 6 }}>
+        <Alert severity="error">
+          <AlertTitle>Result unavailable</AlertTitle>The server completed this
+          job without a result.
+        </Alert>
+        <Button
+          sx={{ mt: 3 }}
+          variant="outlined"
+          component={Link}
+          to="/library"
+        >
+          Back to library
+        </Button>
+      </Container>
     );
   }
 
-  return <SummaryResult result={job.result} sourceName={job.source.name} requestedLanguage={job.options.language} />;
+  return (
+    <SummaryResult
+      result={job.result}
+      sourceName={job.source.name}
+      requestedLanguage={job.options.language}
+    />
+  );
 }

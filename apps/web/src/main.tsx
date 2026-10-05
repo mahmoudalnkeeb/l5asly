@@ -5,8 +5,8 @@ import { BrowserRouter } from "react-router-dom";
 
 import { App } from "@/app";
 import { ThemeProvider } from "@/components/theme-provider";
-import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { NotificationProvider } from "@/components/notifications";
+import { ViewerProfileProvider } from "@/features/profile/viewer-profile";
 import "@/index.css";
 
 const rootElement = document.getElementById("root");
@@ -28,12 +28,13 @@ createRoot(rootElement).render(
   <StrictMode>
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
-          <Toaster richColors />
-        </TooltipProvider>
+        <NotificationProvider>
+          <ViewerProfileProvider>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </ViewerProfileProvider>
+        </NotificationProvider>
       </QueryClientProvider>
     </ThemeProvider>
   </StrictMode>,

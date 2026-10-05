@@ -2,12 +2,16 @@ import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { WatchVerdict } from "@l5sly/contracts";
+import type { SummaryLanguage, WatchVerdict } from "@l5sly/contracts";
 
 import { createDatabase } from "../../database.js";
-import { ProviderError, ProviderTimeoutError } from "../../errors.js";
+import {
+  ProviderError,
+  ProviderTimeoutError,
+  SummaryFormatError,
+} from "../../errors.js";
 import { logger } from "../../logger.js";
 import { MediaPreparer } from "./media-preparer.js";
 import type {
@@ -22,7 +26,10 @@ import type {
 } from "./providers/provider-contracts.js";
 import { SummaryRepository } from "./summary-repository.js";
 import { SummaryService } from "./summary-service.js";
-import type { DownloadedMedia, YoutubeDownloader } from "./youtube-downloader.js";
+import type {
+  DownloadedMedia,
+  YoutubeDownloader,
+} from "./youtube-downloader.js";
 
 const transcription: TranscriptionResult = {
   text: "The speaker explains one useful technique with a concrete example.",
@@ -47,12 +54,28 @@ const generatedSummary: GeneratedSummary = {
     { title: "Example", body: "The speaker gives a concrete example." },
   ],
   notes: [
-    { category: "Method", title: "Use the technique", detail: "Apply it to the example." },
-    { category: "Evidence", title: "Concrete example", detail: "The transcript includes an example." },
-    { category: "Scope", title: "Narrow topic", detail: "The video covers one technique." },
+    {
+      category: "Method",
+      title: "Use the technique",
+      detail: "Apply it to the example.",
+    },
+    {
+      category: "Evidence",
+      title: "Concrete example",
+      detail: "The transcript includes an example.",
+    },
+    {
+      category: "Scope",
+      title: "Narrow topic",
+      detail: "The video covers one technique.",
+    },
   ],
   recommendedMoments: [
-    { startSeconds: 0, title: "The useful section", reason: "It contains the technique and example." },
+    {
+      startSeconds: 0,
+      title: "The useful section",
+      reason: "It contains the technique and example.",
+    },
   ],
 };
 
@@ -65,9 +88,14 @@ const verdict: WatchVerdict = {
 
 class SuccessfulTranscriptionProvider implements TranscriptionProvider {
   lastInput?: MediaInput;
+  lastLanguage?: SummaryLanguage;
 
-  async transcribe(input: MediaInput): Promise<TranscriptionResult> {
+  async transcribe(
+    input: MediaInput,
+    language: SummaryLanguage,
+  ): Promise<TranscriptionResult> {
     this.lastInput = input;
+    this.lastLanguage = language;
     return transcription;
   }
 }
@@ -84,7 +112,9 @@ class StubYoutubeDownloader implements YoutubeDownloader {
 }
 
 class SuccessfulSummaryProvider implements SummaryProvider {
-  async summarize(_input: SummaryGenerationInput): Promise<GeneratedSummary> {
+  lastInput?: SummaryGenerationInput;
+  async summarize(input: SummaryGenerationInput): Promise<GeneratedSummary> {
+    this.lastInput = input;
     return generatedSummary;
   }
 }
@@ -96,7 +126,9 @@ class FailingSummaryProvider implements SummaryProvider {
 }
 
 class SuccessfulVerdictProvider implements VerdictProvider {
-  async decide(_input: VerdictInput): Promise<WatchVerdict> {
+  lastInput?: VerdictInput;
+  async decide(input: VerdictInput): Promise<WatchVerdict> {
+    this.lastInput = input;
     return verdict;
   }
 }
@@ -110,12 +142,306 @@ class TimedOutVerdictProvider implements VerdictProvider {
 const databases: ReturnType<typeof createDatabase>[] = [];
 
 afterEach(() => {
+  vi.restoreAllMocks();
   for (const database of databases.splice(0)) {
     database.close();
   }
 });
 
 describe("SummaryService", () => {
+  it("does not clean up a stale failed-job snapshot after a retry has started", async () => {
+    const { service, repository } = createService(
+      new SuccessfulSummaryProvider(),
+      new SuccessfulVerdictProvider(),
+    );
+    const job = service.createFromUrl({
+      url: "https://example.com/video.mp4",
+      language: "English",
+      depth: "quick",
+    });
+    const expiresAt = new Date(Date.now() - 1000).toISOString();
+    repository.saveCheckpoint(job.id, {
+      transcription,
+      mediaExpiresAt: expiresAt,
+    });
+    repository.fail(job.id, "Summary failed.");
+    const failedJob = repository.findById(job.id);
+    if (!failedJob) throw new Error("Expected a persisted job.");
+    await service.retry(job.id);
+    vi.spyOn(repository, "listFailed").mockReturnValue([failedJob]);
+    await service.cleanupExpiredMedia();
+    expect(repository.getCheckpoint(job.id).mediaExpiresAt).toBe(expiresAt);
+    expect(repository.findById(job.id)?.status).toBe("queued");
+  });
+  it("retries only summary generation using saved transcription, verdict and original profile", async () => {
+    const summarize = vi
+      .fn<SummaryProvider["summarize"]>()
+      .mockRejectedValueOnce(
+        new SummaryFormatError("Invalid model fields.", {
+          notes: ["invalid_type"],
+        }),
+      )
+      .mockResolvedValue(generatedSummary);
+    const verdictProvider = new SuccessfulVerdictProvider();
+    const decide = vi.spyOn(verdictProvider, "decide");
+    const { service, repository, transcriptionProvider } = createService(
+      { summarize },
+      verdictProvider,
+    );
+    const transcribe = vi.spyOn(transcriptionProvider, "transcribe");
+    const job = service.createFromUrl({
+      url: "https://example.com/video.mp4",
+      language: "Arabic",
+      sourceLanguage: "Arabic",
+      depth: "study",
+      expectation: "What is Strapi?",
+      viewerProfile: {
+        background: "Backend engineer",
+        knowledge: "SQL",
+        goals: "System design",
+        preferences: "",
+      },
+    });
+
+    await service.process(job.id);
+    expect(service.findById(job.id)).toMatchObject({
+      status: "failed",
+      failedStep: "summary",
+      errorCode: "SUMMARY_INVALID_FORMAT",
+      errorDetails: { notes: ["invalid_type"] },
+      retryInfo: { fromStep: "summary", requiresUpload: false },
+    });
+    expect(repository.getCheckpoint(job.id).transcription).toEqual(
+      transcription,
+    );
+    expect(repository.getCheckpoint(job.id).verdict).toEqual(verdict);
+
+    const retried = await service.retry(job.id);
+    expect(retried).toMatchObject({
+      id: job.id,
+      status: "queued",
+      progress: 68,
+      attempt: 2,
+      error: null,
+      errorCode: null,
+      failedStep: null,
+    });
+    await expect(service.retry(job.id)).rejects.toMatchObject({
+      code: "JOB_NOT_FAILED",
+    });
+    await service.process(job.id);
+    await service.process(job.id);
+    expect(service.findById(job.id).status).toBe("completed");
+    expect(summarize).toHaveBeenCalledTimes(2);
+    expect(transcribe).toHaveBeenCalledTimes(1);
+    expect(decide).toHaveBeenCalledTimes(1);
+    expect(summarize.mock.calls[1]?.[0]).toMatchObject({
+      expectation: "What is Strapi?",
+      viewerProfile: { goals: "System design" },
+    });
+    expect(repository.getCheckpoint(job.id)).toEqual({});
+  });
+
+  it("retains failed transcription media and retries without preparing audio again", async () => {
+    const testDirectory = await mkdtemp(path.join(tmpdir(), "l5asly-retry-"));
+    const audioPath = path.join(testDirectory, "source.webm");
+    await writeFile(audioPath, "test audio");
+    try {
+      const { service, repository, transcriptionProvider } = createService(
+        new SuccessfulSummaryProvider(),
+        new SuccessfulVerdictProvider(),
+      );
+      const transcribe = vi
+        .spyOn(transcriptionProvider, "transcribe")
+        .mockRejectedValueOnce(
+          new ProviderError("Temporary transcription failure."),
+        );
+      const prepare = vi.spyOn(MediaPreparer.prototype, "prepare");
+      const job = service.createFromUpload({
+        originalName: "source.webm",
+        path: audioPath,
+        mimeType: "audio/webm",
+        options: { language: "English", depth: "quick" },
+      });
+      await service.process(job.id);
+      expect(service.findById(job.id)).toMatchObject({
+        failedStep: "transcription",
+        retryInfo: { fromStep: "transcription", requiresUpload: false },
+      });
+      await expect(access(audioPath)).resolves.toBeUndefined();
+      expect(repository.getCheckpoint(job.id).preparedMedia?.path).toBe(
+        audioPath,
+      );
+      await service.retry(job.id);
+      await service.process(job.id);
+      expect(service.findById(job.id).status).toBe("completed");
+      expect(prepare).toHaveBeenCalledTimes(1);
+      expect(transcribe).toHaveBeenCalledTimes(2);
+      await expect(access(audioPath)).rejects.toThrow();
+    } finally {
+      await rm(testDirectory, { recursive: true, force: true });
+    }
+  });
+
+  it("expires retained audio and accepts replacement media for the same job", async () => {
+    const testDirectory = await mkdtemp(path.join(tmpdir(), "l5asly-expiry-"));
+    const audioPath = path.join(testDirectory, "source.webm");
+    const replacementPath = path.join(testDirectory, "replacement.webm");
+    await writeFile(audioPath, "test audio");
+    try {
+      const { service, repository, transcriptionProvider } = createService(
+        new SuccessfulSummaryProvider(),
+        new SuccessfulVerdictProvider(),
+      );
+      vi.spyOn(transcriptionProvider, "transcribe").mockRejectedValueOnce(
+        new ProviderError("Transcription failed."),
+      );
+      const job = service.createFromUpload({
+        originalName: "source.webm",
+        path: audioPath,
+        mimeType: "audio/webm",
+        options: { language: "English", depth: "quick" },
+      });
+      await service.process(job.id);
+      repository.saveCheckpoint(job.id, {
+        ...repository.getCheckpoint(job.id),
+        mediaExpiresAt: new Date(Date.now() - 1000).toISOString(),
+      });
+      await service.cleanupExpiredMedia();
+      await expect(access(audioPath)).rejects.toThrow();
+      expect(service.findById(job.id).retryInfo).toMatchObject({
+        fromStep: "media",
+        requiresUpload: true,
+      });
+      await expect(service.retry(job.id)).rejects.toMatchObject({
+        code: "REUPLOAD_REQUIRED",
+      });
+      await writeFile(replacementPath, "replacement audio");
+      await service.retry(job.id, {
+        path: replacementPath,
+        mimeType: "audio/webm",
+      });
+      await service.process(job.id);
+      expect(service.findById(job.id)).toMatchObject({
+        id: job.id,
+        status: "completed",
+        attempt: 2,
+        source: { name: "source.webm" },
+      });
+      await expect(access(replacementPath)).rejects.toThrow();
+    } finally {
+      await rm(testDirectory, { recursive: true, force: true });
+    }
+  });
+
+  it("deletes failed jobs, retained media and checkpoint data", async () => {
+    const testDirectory = await mkdtemp(path.join(tmpdir(), "l5asly-delete-"));
+    const audioPath = path.join(testDirectory, "source.webm");
+    await writeFile(audioPath, "test audio");
+    try {
+      const { service, repository, transcriptionProvider } = createService(
+        new SuccessfulSummaryProvider(),
+        new SuccessfulVerdictProvider(),
+      );
+      vi.spyOn(transcriptionProvider, "transcribe").mockRejectedValueOnce(
+        new ProviderError("Transcription failed."),
+      );
+      const job = service.createFromUpload({
+        originalName: "source.webm",
+        path: audioPath,
+        mimeType: "audio/webm",
+        options: { language: "English", depth: "quick" },
+      });
+      await expect(service.delete(job.id)).rejects.toMatchObject({
+        code: "JOB_ACTIVE",
+      });
+      await service.process(job.id);
+      await service.delete(job.id);
+      expect(repository.findById(job.id)).toBeNull();
+      expect(repository.getCheckpoint(job.id)).toEqual({});
+      await expect(access(audioPath)).rejects.toThrow();
+      await expect(service.retry(job.id)).rejects.toMatchObject({
+        code: "SUMMARY_NOT_FOUND",
+      });
+    } finally {
+      await rm(testDirectory, { recursive: true, force: true });
+    }
+  });
+
+  it("recovers a server interruption using a saved transcript and restarts older URL jobs honestly", async () => {
+    const { service, repository, transcriptionProvider } = createService(
+      new SuccessfulSummaryProvider(),
+      new SuccessfulVerdictProvider(),
+    );
+    const transcribe = vi.spyOn(transcriptionProvider, "transcribe");
+    const job = service.createFromUrl({
+      url: "https://example.com/video.mp4",
+      language: "English",
+      depth: "quick",
+    });
+    repository.updateProgress(job.id, 68, "Generating summary");
+    repository.saveCheckpoint(job.id, { transcription });
+    repository.failInterruptedJobs();
+    expect(service.findById(job.id)).toMatchObject({
+      errorCode: "JOB_INTERRUPTED",
+      retryInfo: { fromStep: "summary" },
+    });
+    await service.retry(job.id);
+    await service.process(job.id);
+    expect(transcribe).not.toHaveBeenCalled();
+    expect(service.findById(job.id).status).toBe("completed");
+
+    const older = service.createFromUrl({
+      url: "https://example.com/older.mp4",
+      language: "English",
+      depth: "quick",
+    });
+    repository.fail(older.id, "Legacy summary failure.");
+    expect(service.findById(older.id).retryInfo).toMatchObject({
+      fromStep: "media",
+      requiresUpload: false,
+    });
+    await service.retry(older.id);
+    await service.process(older.id);
+    expect(transcribe).toHaveBeenCalledTimes(1);
+  });
+  it("persists a profile snapshot and separates spoken language from summary language", async () => {
+    const summaryProvider = new SuccessfulSummaryProvider();
+    const verdictProvider = new SuccessfulVerdictProvider();
+    const { service, repository, transcriptionProvider } = createService(
+      summaryProvider,
+      verdictProvider,
+    );
+    const viewerProfile = {
+      background: "Backend developer",
+      knowledge: "SQL",
+      goals: "Learn Strapi",
+      preferences: "Practical examples",
+    };
+    const job = service.createFromUrl({
+      url: "https://example.com/video.mp4",
+      language: "English",
+      sourceLanguage: "Arabic",
+      depth: "quick",
+      viewerProfile,
+    });
+    viewerProfile.goals = "A later profile edit";
+    await service.process(job.id);
+    expect(transcriptionProvider.lastLanguage).toBe("Arabic");
+    expect(summaryProvider.lastInput?.language).toBe("English");
+    expect(summaryProvider.lastInput?.viewerProfile?.goals).toBe(
+      "Learn Strapi",
+    );
+    expect(verdictProvider.lastInput?.viewerProfile).toEqual(
+      summaryProvider.lastInput?.viewerProfile,
+    );
+    expect(verdictProvider.lastInput?.language).toBe("English");
+    expect(repository.findById(job.id)?.options.sourceLanguage).toBe("Arabic");
+    expect(repository.findById(job.id)?.options.viewerProfile?.goals).toBe(
+      "Learn Strapi",
+    );
+  });
+
   it("completes with a provisional verdict when the verdict provider times out", async () => {
     const { repository, service } = createService(
       new SuccessfulSummaryProvider(),
@@ -135,7 +461,9 @@ describe("SummaryService", () => {
       recommendation: "watch-key-moments",
       confidence: 0.5,
     });
-    expect(completedJob?.result?.caveats[0]).toContain("watch-verdict service was unavailable");
+    expect(completedJob?.result?.caveats[0]).toContain(
+      "watch-verdict service was unavailable",
+    );
   });
 
   it("fails the job when summary generation fails", async () => {
@@ -176,7 +504,9 @@ describe("SummaryService", () => {
     await service.process(job.id);
 
     expect(repository.findById(job.id)?.status).toBe("completed");
-    expect(downloader.requestedUrl).toBe("https://www.youtube.com/watch?v=abc123");
+    expect(downloader.requestedUrl).toBe(
+      "https://www.youtube.com/watch?v=abc123",
+    );
     expect(transcriptionProvider.lastInput).toEqual({
       kind: "file",
       path: downloadedPath,

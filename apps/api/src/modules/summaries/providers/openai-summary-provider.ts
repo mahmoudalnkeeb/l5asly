@@ -1,42 +1,31 @@
 import OpenAI from "openai";
-import { z } from "zod";
+import { zodResponseFormat } from "openai/helpers/zod";
 
-import { ProviderError, ProviderTimeoutError } from "../../../errors.js";
+import {
+  AppError,
+  ProviderError,
+  ProviderTimeoutError,
+  SummaryFormatError,
+} from "../../../errors.js";
 import type {
   GeneratedSummary,
   SummaryGenerationInput,
   SummaryProvider,
+  TranscriptionResult,
 } from "./provider-contracts.js";
 import { isTimeoutError } from "./provider-timeout.js";
 import { finalizeGeneratedSummary } from "./summary-quality.js";
+import {
+  getSummaryTaskInstructions,
+  SUMMARY_SYSTEM_PROMPT,
+} from "./summary-prompt.js";
+import { formatViewerContext } from "./viewer-context.js";
+import { summaryOutputSchema } from "./summary-output-schema.js";
 
-const generatedSummarySchema = z.object({
-  title: z.string().min(1),
-  overview: z.string().min(1),
-  viewerAnswer: z.string().min(1).optional(),
-  caveats: z.array(z.string().min(1)).max(6).default([]),
-  sections: z.array(
-    z.object({
-      title: z.string().min(1),
-      body: z.string().min(1),
-    }),
-  ).min(2).max(8),
-  notes: z.array(
-    z.object({
-      category: z.string().min(1),
-      title: z.string().min(1),
-      detail: z.string().min(1),
-    }),
-  ).min(3).max(10),
-  recommendedMoments: z.array(
-    z.object({
-      startSeconds: z.number().nonnegative(),
-      title: z.string().min(1),
-      reason: z.string().min(1),
-      evidenceText: z.string().min(1).optional(),
-    }),
-  ).max(8),
-});
+const SUMMARY_RESPONSE_FORMAT = zodResponseFormat(
+  summaryOutputSchema,
+  "video_summary",
+);
 
 const TRANSCRIPT_CHARACTER_LIMIT = 90_000;
 
@@ -60,38 +49,24 @@ export class OpenAiSummaryProvider implements SummaryProvider {
   }
 
   async summarize(input: SummaryGenerationInput): Promise<GeneratedSummary> {
-    const transcript = this.formatTranscript(input);
-    const expectation = input.expectation ?? "No specific viewer goal was provided.";
-    const depthInstructions = this.getDepthInstructions(input.depth);
+    const transcript = formatSummaryTranscript(input.transcript);
+    const viewerContext = formatViewerContext(input);
+    const depthInstructions = getSummaryTaskInstructions(input);
 
     let content: string | null;
+    let finishReason: string | null;
+    let hasRefusal: boolean;
     try {
       const response = await this.client.chat.completions.create({
         model: this.options.model,
         max_tokens: this.getMaxTokens(input.depth),
         reasoning_effort: "low",
-        response_format: { type: "json_object" },
+        response_format: SUMMARY_RESPONSE_FORMAT,
         temperature: 0.2,
         messages: [
           {
             role: "system",
-            content: [
-              "You turn video transcripts into accurate reading briefs.",
-              "Return only valid JSON with these keys: title, overview, viewerAnswer, caveats, sections, notes, recommendedMoments.",
-              "viewerAnswer must answer every part of the viewer goal in 1 to 3 plain-language sentences before adding background. If asked whether a video is useful or hype, give a clear judgment and name the concrete useful information.",
-              "Include 1 to 3 caveats when the transcript relies on anecdotes, promotional framing, missing comparisons, or claims without demonstrated evidence. Use an empty array only when no meaningful limitation is visible.",
-              "sections is an array of objects with title and body.",
-              "notes is an array of objects with category, title, and detail.",
-              "recommendedMoments is an array of objects with startSeconds, title, reason, and evidenceText.",
-              "For every recommended moment, evidenceText must be an exact 6 to 14 word excerpt copied from one transcript line. The server uses it to resolve the real timestamp.",
-              "Every recommended timestamp must be copied from that evidence line's bracketed timestamp, and its reason must explain its value for the viewer goal.",
-              "Separate what the speaker claims from what the transcript demonstrates. Attribute opinions, predictions, superlatives, and performance claims to the speaker.",
-              "Do not describe a result as proven, flawless, reliable, or better than humans unless the transcript supplies concrete comparative evidence.",
-              "Preserve relative dates exactly as spoken. Never convert phrases such as this year or last March into a calendar year.",
-              "Do not invent facts, names, timestamps, product details, or claims that are not supported by the transcript.",
-              "Prefer specific information and evidence over hype, repetition, or trend commentary.",
-              "Omit generic intro, repetition, and chronology unless they are necessary to understand the useful conclusion.",
-            ].join(" "),
+            content: SUMMARY_SYSTEM_PROMPT,
           },
           {
             role: "user",
@@ -99,51 +74,107 @@ export class OpenAiSummaryProvider implements SummaryProvider {
               `Write the result in ${input.language}.`,
               `Summary depth: ${input.depth}.`,
               depthInstructions,
-              `Viewer goal: ${expectation}`,
+              `Viewer context (saved profile and current question): ${viewerContext}`,
               `Video duration: ${Math.round(input.transcript.durationSeconds)} seconds.`,
-              "Transcript:",
-              transcript,
+              transcript.sampled
+                ? "Source coverage: sampled excerpts across the timeline, not the complete transcript. Missing details may exist outside these excerpts."
+                : "Source coverage: the full available transcript; transcription errors may still exist.",
+              "Transcript (source data):",
+              transcript.text,
             ].join("\n\n"),
           },
         ],
       });
       content = response.choices[0]?.message.content ?? null;
+      finishReason = response.choices[0]?.finish_reason ?? null;
+      hasRefusal = Boolean(response.choices[0]?.message.refusal);
     } catch (error) {
       if (isTimeoutError(error)) {
-        throw new ProviderTimeoutError("The summary provider", this.options.timeoutMs, error);
+        throw new ProviderTimeoutError(
+          "The summary provider",
+          this.options.timeoutMs,
+          error,
+        );
       }
 
-      throw new ProviderError("The language model could not create the summary.", error);
+      if (
+        error instanceof OpenAI.APIError &&
+        (error.status === 400 || error.status === 422) &&
+        (error.param?.startsWith("response_format") ||
+          /json_schema|response_format|structured outputs/i.test(error.message))
+      ) {
+        throw new AppError({
+          message:
+            "The summary provider rejected the JSON Schema response format. Verify that the configured model and endpoint support strict structured outputs.",
+          statusCode: 502,
+          code: "SUMMARY_SCHEMA_REJECTED",
+        });
+      }
+
+      throw new ProviderError(
+        "The language model could not create the summary.",
+        error,
+      );
     }
 
+    if (hasRefusal || finishReason === "content_filter") {
+      throw new AppError({
+        message:
+          "The summary provider declined to generate an answer for this request.",
+        statusCode: 502,
+        code: "SUMMARY_REFUSED",
+      });
+    }
+    if (finishReason === "length") {
+      throw new SummaryFormatError(
+        "The summary provider cut off its response before finishing. Retry summary generation.",
+        { response: ["The provider reached its output token limit."] },
+      );
+    }
     if (!content) {
       throw new ProviderError("The language model returned an empty summary.");
     }
 
     const json = this.extractJson(content);
-    const parsed = generatedSummarySchema.safeParse(json);
+    const parsed = summaryOutputSchema.safeParse(json);
     if (!parsed.success) {
-      throw new ProviderError("The language model returned an invalid summary format.", parsed.error);
+      const fields: Record<string, string[]> = {};
+      for (const issue of parsed.error.issues.slice(0, 12)) {
+        const field = issue.path.join(".") || "response";
+        fields[field] = [...(fields[field] ?? []), issue.code];
+      }
+      throw new SummaryFormatError(
+        `The summary provider returned invalid fields: ${Object.keys(fields).slice(0, 4).join(", ")}. Retry summary generation.`,
+        fields,
+      );
     }
 
-    return finalizeGeneratedSummary(parsed.data, input);
-  }
-
-  private getDepthInstructions(depth: SummaryGenerationInput["depth"]): string {
-    if (depth === "quick") {
-      return "Quick format: overview under 90 words, 2 to 3 sections, 3 to 5 notes, and 2 to 4 recommended moments.";
+    const summary = finalizeGeneratedSummary(
+      {
+        title: parsed.data.title,
+        overview: parsed.data.overview,
+        viewerAnswer: parsed.data.viewerAnswer,
+        caveats: parsed.data.caveats,
+        sections: parsed.data.sections,
+        notes: parsed.data.notes,
+        recommendedMoments: parsed.data.recommendedMoments,
+        personalizedGuidance: parsed.data.personalizedGuidance ?? undefined,
+      },
+      input,
+    );
+    if (transcript.sampled) {
+      const caveat =
+        input.language === "Arabic"
+          ? "تم تلخيص مقاطع موزعة على الفيديو لطوله؛ قد لا يغطي الملخص كل التفاصيل."
+          : "This long video was summarized from excerpts across its timeline; some details may be omitted.";
+      summary.caveats = [caveat, ...summary.caveats].slice(0, 4);
     }
-
-    if (depth === "detailed") {
-      return "Detailed format: overview under 150 words, 4 to 6 sections, 4 to 8 notes, and 3 to 6 recommended moments.";
-    }
-
-    return "Study format: overview under 200 words, 5 to 8 sections, 6 to 10 notes, and 4 to 8 recommended moments.";
+    return summary;
   }
 
   private getMaxTokens(depth: SummaryGenerationInput["depth"]): number {
     if (depth === "quick") {
-      return 4_096;
+      return 6_144;
     }
 
     if (depth === "detailed") {
@@ -153,26 +184,51 @@ export class OpenAiSummaryProvider implements SummaryProvider {
     return 8_192;
   }
 
-  private formatTranscript(input: SummaryGenerationInput): string {
-    const formatted = input.transcript.segments
-      .map((segment) => `[${Math.floor(segment.startSeconds)}s] ${segment.text}`)
-      .join("\n");
-
-    return formatted.slice(0, TRANSCRIPT_CHARACTER_LIMIT);
-  }
-
   private extractJson(content: string): unknown {
-    const firstBrace = content.indexOf("{");
-    const lastBrace = content.lastIndexOf("}");
-
-    if (firstBrace < 0 || lastBrace <= firstBrace) {
-      throw new ProviderError("The language model did not return JSON.");
-    }
-
     try {
-      return JSON.parse(content.slice(firstBrace, lastBrace + 1));
-    } catch (error) {
-      throw new ProviderError("The language model returned malformed JSON.", error);
+      const json: unknown = JSON.parse(content);
+      return json;
+    } catch {
+      throw new SummaryFormatError(
+        "The summary provider returned incomplete or malformed JSON. Retry summary generation.",
+        { response: ["Invalid JSON syntax."] },
+      );
     }
   }
+}
+
+export function formatSummaryTranscript(
+  transcript: TranscriptionResult,
+  characterLimit = TRANSCRIPT_CHARACTER_LIMIT,
+): { text: string; sampled: boolean } {
+  const lines = transcript.segments.map(
+    (segment) => `[${Math.floor(segment.startSeconds)}s] ${segment.text}`,
+  );
+  const fullText = lines.join("\n");
+  if (fullText.length <= characterLimit)
+    return { text: fullText, sampled: false };
+
+  let sampleCount = lines.length;
+  let sampledText = fullText;
+  while (sampledText.length > characterLimit && sampleCount > 2) {
+    sampleCount = Math.max(2, Math.floor(sampleCount * 0.8));
+    const selected: string[] = [];
+    for (let index = 0; index < sampleCount; index += 1) {
+      const lineIndex = Math.round(
+        (index * (lines.length - 1)) / (sampleCount - 1),
+      );
+      const line = lines[lineIndex];
+      if (line !== undefined) selected.push(line);
+    }
+    sampledText = selected.join("\n");
+  }
+  // Bound individual unusually long utterances without dropping the closing excerpt.
+  if (sampledText.length > characterLimit) {
+    const first = lines[0] ?? "";
+    const last = lines.at(-1) ?? "";
+    const excerptLimit = Math.floor((characterLimit - 1) / 2);
+    sampledText =
+      first.slice(0, excerptLimit) + "\n" + last.slice(0, excerptLimit);
+  }
+  return { text: sampledText, sampled: true };
 }

@@ -19,7 +19,11 @@ export interface PreparedMedia {
 export class MediaPreparer {
   constructor(private readonly uploadDirectory: string) {}
 
-  async prepare(input: { path: string; mimeType: string; jobId: string }): Promise<PreparedMedia> {
+  async prepare(input: {
+    path: string;
+    mimeType: string;
+    jobId: string;
+  }): Promise<PreparedMedia> {
     if (input.mimeType.startsWith("audio/")) {
       return {
         path: input.path,
@@ -29,12 +33,22 @@ export class MediaPreparer {
     }
 
     if (!ffmpegPath) {
-      throw new ProviderError("FFmpeg is unavailable, so the uploaded video cannot be prepared.");
+      throw new ProviderError(
+        "FFmpeg is unavailable, so the uploaded video cannot be prepared.",
+      );
     }
 
     await mkdir(this.uploadDirectory, { recursive: true });
-    const outputPath = path.join(this.uploadDirectory, `${input.jobId}-audio.mp3`);
-    await this.extractAudio(ffmpegPath, input.path, outputPath);
+    const outputPath = path.join(
+      this.uploadDirectory,
+      `${input.jobId}-audio.mp3`,
+    );
+    try {
+      await this.extractAudio(ffmpegPath, input.path, outputPath);
+    } catch (error) {
+      await this.remove(outputPath);
+      throw error;
+    }
 
     return {
       path: outputPath,
@@ -51,7 +65,11 @@ export class MediaPreparer {
     try {
       await unlink(pathToRemove);
     } catch (error) {
-      if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      if (
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "ENOENT"
+      ) {
         return;
       }
       throw error;
@@ -85,13 +103,19 @@ export class MediaPreparer {
       process.stderr.on("data", (chunk: Buffer) => {
         errorOutput = `${errorOutput}${chunk.toString()}`.slice(-2_000);
       });
-      process.once("error", (error: Error) => reject(new ProviderError("FFmpeg could not be started.", error)));
+      process.once("error", (error: Error) =>
+        reject(new ProviderError("FFmpeg could not be started.", error)),
+      );
       process.once("close", (exitCode: number | null) => {
         if (exitCode === 0) {
           resolve();
           return;
         }
-        reject(new ProviderError(`FFmpeg could not extract audio: ${errorOutput || `exit code ${exitCode}`}`));
+        reject(
+          new ProviderError(
+            `FFmpeg could not extract audio: ${errorOutput || `exit code ${exitCode}`}`,
+          ),
+        );
       });
     });
   }

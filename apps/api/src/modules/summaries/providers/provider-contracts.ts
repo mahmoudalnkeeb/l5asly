@@ -6,6 +6,8 @@ import type {
   SummarySection,
   TranscriptSegment,
   WatchVerdict,
+  ViewerProfile,
+  PersonalizedGuidance,
 } from "@l5sly/contracts";
 
 export type MediaInput =
@@ -31,6 +33,7 @@ export interface SummaryGenerationInput {
   language: SummaryLanguage;
   depth: SummaryDepth;
   expectation?: string;
+  viewerProfile?: ViewerProfile;
 }
 
 export interface GeneratedSummary {
@@ -41,16 +44,22 @@ export interface GeneratedSummary {
   sections: SummarySection[];
   notes: SummaryNote[];
   recommendedMoments: RecommendedMoment[];
+  personalizedGuidance?: PersonalizedGuidance;
 }
 
 export interface VerdictInput {
   transcript: string;
   durationSeconds: number;
   expectation?: string;
+  viewerProfile?: ViewerProfile;
+  language?: SummaryLanguage;
 }
 
 export interface TranscriptionProvider {
-  transcribe(input: MediaInput): Promise<TranscriptionResult>;
+  transcribe(
+    input: MediaInput,
+    language: SummaryLanguage,
+  ): Promise<TranscriptionResult>;
 }
 
 export interface SummaryProvider {
