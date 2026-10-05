@@ -1,0 +1,119 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: "IBM Plex Sans", "IBM Plex Sans Arabic", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-sans-arabic: "IBM Plex Sans Arabic", "IBM Plex Sans", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  color-scheme: light;
+  --radius: 0.75rem;
+  --background: oklch(0.982 0.005 135);
+  --foreground: oklch(0.19 0.026 142);
+  --card: oklch(0.998 0.002 130);
+  --card-foreground: oklch(0.2 0.026 142);
+  --popover: oklch(0.998 0.002 130);
+  --popover-foreground: oklch(0.2 0.026 142);
+  --primary: oklch(0.22 0.032 143);
+  --primary-foreground: oklch(0.98 0.007 135);
+  --secondary: oklch(0.94 0.012 138);
+  --secondary-foreground: oklch(0.25 0.027 143);
+  --muted: oklch(0.95 0.01 137);
+  --muted-foreground: oklch(0.45 0.022 142);
+  --accent: oklch(0.82 0.18 127);
+  --accent-foreground: oklch(0.19 0.039 132);
+  --destructive: oklch(0.57 0.2 26);
+  --border: oklch(0.885 0.014 139);
+  --input: oklch(0.84 0.018 139);
+  --ring: oklch(0.54 0.12 127);
+}
+
+.dark {
+  color-scheme: dark;
+  --background: oklch(0.16 0.018 143);
+  --foreground: oklch(0.94 0.012 135);
+  --card: oklch(0.195 0.019 143);
+  --card-foreground: oklch(0.94 0.012 135);
+  --popover: oklch(0.21 0.02 143);
+  --popover-foreground: oklch(0.94 0.012 135);
+  --primary: oklch(0.94 0.012 135);
+  --primary-foreground: oklch(0.17 0.022 143);
+  --secondary: oklch(0.245 0.022 143);
+  --secondary-foreground: oklch(0.93 0.012 135);
+  --muted: oklch(0.235 0.019 143);
+  --muted-foreground: oklch(0.71 0.02 139);
+  --accent: oklch(0.81 0.18 127);
+  --accent-foreground: oklch(0.17 0.035 132);
+  --destructive: oklch(0.68 0.18 24);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.75 0.15 127);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply bg-background;
+  }
+
+  body {
+    @apply min-w-80 min-h-[100dvh] bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+    text-rendering: optimizeLegibility;
+  }
+
+  :lang(ar) {
+    font-family: var(--font-sans-arabic);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-sans);
+  }
+
+  ::selection {
+    background: color-mix(in oklch, var(--accent) 72%, transparent);
+    color: var(--accent-foreground);
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
+  }
+}

@@ -1,0 +1,30 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+**/data/
+*.db
+*.db-shm
+*.db-wal
+*.log
+*.tsbuildinfo
+
+# Local tooling and OS files
+apps/web/.vite/
+.cache/
+.turbo/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Package manager and runtime output
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.pid
+*.seed
+*.pid.lock

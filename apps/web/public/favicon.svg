@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="l5asly-mark" x1="8" y1="6" x2="54" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5BEA8A"/>
+      <stop offset="1" stop-color="#00A878"/>
+    </linearGradient>
+  </defs>
+  <path d="M7 15.5C7 8.02 15.18 3.32 21.62 7.24L54.36 27.24C60.27 30.85 60.27 39.15 54.36 42.76L21.62 62.76C15.18 66.68 7 61.98 7 54.5V15.5Z" fill="url(#l5asly-mark)"/>
+  <path d="M18 27H41M18 35H35M18 43H29" stroke="white" stroke-width="4.5" stroke-linecap="round"/>
+</svg>

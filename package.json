@@ -1,0 +1,31 @@
+{
+  "name": "l5sly",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "predev": "npm run build -w @l5sly/contracts && npm run build -w @l5sly/api",
+    "dev": "concurrently -n api,web -c green,cyan \"npm run dev -w @l5sly/api\" \"npm run dev -w @l5sly/web\"",
+    "build": "npm run build -w @l5sly/contracts && npm run build -w @l5sly/api && npm run build -w @l5sly/web",
+    "typecheck": "npm run build -w @l5sly/contracts && npm run typecheck -w @l5sly/api && npm run typecheck -w @l5sly/web",
+    "test": "npm run build -w @l5sly/contracts && npm run test -w @l5sly/api && npm run test -w @l5sly/web",
+    "check": "npm run typecheck && npm test && npm run build",
+    "start": "npm run start -w @l5sly/api"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "concurrently": "^10.0.5",
+    "typescript": "^7.0.2"
+  },
+  "allowScripts": {
+    "ffmpeg-static@5.3.0": true,
+    "esbuild@0.28.2": true
+  }
+}
