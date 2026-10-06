@@ -4,7 +4,11 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { SummaryLanguage, WatchVerdict } from "@l5sly/contracts";
+import type {
+  SummaryLanguage,
+  TimelineWindow,
+  WatchVerdict,
+} from "@l5sly/contracts";
 
 import { createDatabase } from "../../database.js";
 import {
@@ -16,9 +20,14 @@ import { logger } from "../../logger.js";
 import { MediaPreparer } from "./media-preparer.js";
 import type {
   GeneratedSummary,
+  GroundingInput,
+  InsightProvider,
   MediaInput,
+  PrecheckInput,
+  SectionSupport,
   SummaryGenerationInput,
   SummaryProvider,
+  TimelineInput,
   TranscriptionProvider,
   TranscriptionResult,
   VerdictInput,
@@ -136,6 +145,41 @@ class SuccessfulVerdictProvider implements VerdictProvider {
 class TimedOutVerdictProvider implements VerdictProvider {
   async decide(_input: VerdictInput): Promise<WatchVerdict> {
     throw new ProviderTimeoutError("The watch-verdict provider", 1_000);
+  }
+}
+
+const timeline: TimelineWindow[] = [
+  { startSeconds: 0, endSeconds: 15, relevance: 0.2 },
+  { startSeconds: 15, endSeconds: 30, relevance: 0.9 },
+];
+
+class StubInsightProvider implements InsightProvider {
+  async scoreTimeline(_input: TimelineInput): Promise<TimelineWindow[]> {
+    return timeline;
+  }
+
+  async checkGrounding(input: GroundingInput): Promise<SectionSupport[]> {
+    return input.sections.map((_section, index) =>
+      index === 0 ? "supported" : "unsupported",
+    );
+  }
+
+  async precheck(_input: PrecheckInput): Promise<WatchVerdict> {
+    return verdict;
+  }
+}
+
+class FailingInsightProvider implements InsightProvider {
+  async scoreTimeline(_input: TimelineInput): Promise<TimelineWindow[]> {
+    throw new ProviderError("Timeline scoring failed.");
+  }
+
+  async checkGrounding(_input: GroundingInput): Promise<SectionSupport[]> {
+    throw new ProviderTimeoutError("The Jev provider", 1_000);
+  }
+
+  async precheck(_input: PrecheckInput): Promise<WatchVerdict> {
+    throw new ProviderError("Precheck failed.");
   }
 }
 
@@ -466,6 +510,48 @@ describe("SummaryService", () => {
     );
   });
 
+  it("adds the relevance timeline and grounding flags to the result", async () => {
+    const { service } = createService(
+      new SuccessfulSummaryProvider(),
+      new SuccessfulVerdictProvider(),
+    );
+    const job = service.createFromUrl({
+      url: "https://example.com/video.mp4",
+      language: "English",
+      depth: "quick",
+    });
+
+    await service.process(job.id);
+
+    const result = service.findById(job.id).result;
+    expect(result?.timeline).toEqual(timeline);
+    expect(result?.sections.map((section) => section.support)).toEqual([
+      "supported",
+      "unsupported",
+    ]);
+  });
+
+  it("completes without a timeline or grounding flags when those checks fail", async () => {
+    const { service } = createService(
+      new SuccessfulSummaryProvider(),
+      new SuccessfulVerdictProvider(),
+      undefined,
+      new FailingInsightProvider(),
+    );
+    const job = service.createFromUrl({
+      url: "https://example.com/video.mp4",
+      language: "English",
+      depth: "quick",
+    });
+
+    await service.process(job.id);
+
+    const completed = service.findById(job.id);
+    expect(completed.status).toBe("completed");
+    expect(completed.result?.timeline).toBeUndefined();
+    expect(completed.result?.sections).toEqual(generatedSummary.sections);
+  });
+
   it("fails the job when summary generation fails", async () => {
     const { repository, service } = createService(
       new FailingSummaryProvider(),
@@ -521,6 +607,7 @@ function createService(
   summaryProvider: SummaryProvider,
   verdictProvider: VerdictProvider,
   youtubeDownloader?: YoutubeDownloader,
+  insightProvider: InsightProvider = new StubInsightProvider(),
 ): {
   repository: SummaryRepository;
   service: SummaryService;
@@ -530,15 +617,16 @@ function createService(
   databases.push(database);
   const repository = new SummaryRepository(database);
   const transcriptionProvider = new SuccessfulTranscriptionProvider();
-  const service = new SummaryService(
+  const service = new SummaryService({
     repository,
-    new MediaPreparer(tmpdir()),
+    mediaPreparer: new MediaPreparer(tmpdir()),
     transcriptionProvider,
     summaryProvider,
     verdictProvider,
-    logger,
+    insightProvider,
+    log: logger,
     youtubeDownloader,
-  );
+  });
 
   return { repository, service, transcriptionProvider };
 }

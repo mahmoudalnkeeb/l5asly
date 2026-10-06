@@ -27,7 +27,7 @@ export const summaryOutputSchema = z.strictObject({
       "Plain-text limitations. Each entry must be a string, never an object. Use [] when none are justified.",
     ),
   sections: z
-    .array(summarySectionSchema.strict())
+    .array(summarySectionSchema.pick({ title: true, body: true }).strict())
     .describe("Relevant key points. Use [] when no points are supported."),
   notes: z
     .array(summaryNoteSchema.strict())

@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   isYouTubeUrl,
+  precheckResultSchema,
   summaryJobSchema,
   summaryListItemSchema,
 } from "@l5sly/contracts";
@@ -106,6 +107,35 @@ describe("summary API", () => {
     expect(malformed.body.error.code).toBe("INVALID_PROFILE");
   });
 
+  it("returns a quick watch verdict for a YouTube link without creating a job", async () => {
+    const before = await request(runtime.app).get("/api/summaries").expect(200);
+
+    const response = await request(runtime.app)
+      .post("/api/summaries/precheck")
+      .send({
+        url: "https://www.youtube.com/watch?v=abc123",
+        language: "English",
+        expectation: "Is this useful for a designer?",
+      })
+      .expect(200);
+
+    expect(precheckResultSchema.parse(response.body.data)).toMatchObject({
+      title: "How creative work survives the age of AI",
+      verdict: { signals: { answersQuestion: 0.5 } },
+    });
+    const after = await request(runtime.app).get("/api/summaries").expect(200);
+    expect(after.body.data).toHaveLength(before.body.data.length);
+  });
+
+  it("rejects quick checks for non-YouTube links", async () => {
+    const response = await request(runtime.app)
+      .post("/api/summaries/precheck")
+      .send({ url: "https://example.com/video.mp4", language: "English" })
+      .expect(400);
+
+    expect(response.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
   it("rejects a YouTube page without a video identifier", async () => {
     const response = await request(runtime.app)
       .post("/api/summaries/url")
@@ -154,6 +184,12 @@ describe("summary API", () => {
     expect(completedJob?.result?.verdict.recommendation).toBe(
       "watch-key-moments",
     );
+    expect(completedJob?.result?.timeline?.length).toBeGreaterThan(0);
+    expect(
+      completedJob?.result?.sections.every(
+        (section) => section.support === "supported",
+      ),
+    ).toBe(true);
 
     const listResponse = await request(runtime.app)
       .get("/api/summaries")

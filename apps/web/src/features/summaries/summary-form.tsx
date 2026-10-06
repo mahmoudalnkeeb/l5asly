@@ -40,7 +40,9 @@ import {
   createUploadSummary,
   createUrlSummary,
   getErrorMessage,
+  precheckVideo,
 } from "@/lib/api-client";
+import { PrecheckResult } from "./precheck-result";
 
 const formSchema = z
   .object({
@@ -113,6 +115,8 @@ export function SummaryForm() {
   const sourceType = form.watch("sourceType");
   const expectation = form.watch("expectation") ?? "";
   const depth = form.watch("depth");
+  const url = form.watch("url")?.trim() ?? "";
+  const canPrecheck = sourceType === "url" && isYouTubeUrl(url);
 
   const createSummary = useMutation({
     mutationFn: async (values: SummaryFormValues) => {
@@ -141,6 +145,19 @@ export function SummaryForm() {
     onError: (error) =>
       notify({ severity: "error", message: getErrorMessage(error) }),
   });
+
+  // Fast verdict from public metadata; no job is created and nothing is downloaded.
+  const precheck = useMutation({
+    mutationFn: (videoUrl: string) =>
+      precheckVideo({
+        url: videoUrl,
+        language: form.getValues("language"),
+        viewerProfile,
+        expectation: form.getValues("expectation") || undefined,
+      }),
+  });
+  // Hide an earlier result once the link is edited.
+  const isPrecheckForCurrentUrl = precheck.variables === url;
 
   function selectSource(value: unknown): void {
     if (value !== "upload" && value !== "url") return;
@@ -494,6 +511,13 @@ export function SummaryForm() {
               </Alert>
             ) : null}
 
+            {canPrecheck && isPrecheckForCurrentUrl && precheck.isSuccess ? (
+              <PrecheckResult result={precheck.data} />
+            ) : null}
+            {canPrecheck && isPrecheckForCurrentUrl && precheck.isError ? (
+              <Alert severity="error">{getErrorMessage(precheck.error)}</Alert>
+            ) : null}
+
             <Stack
               direction={{ xs: "column", sm: "row" }}
               spacing={1.5}
@@ -512,6 +536,21 @@ export function SummaryForm() {
               >
                 {createSummary.isPending ? "Starting…" : "Create summary"}
               </Button>
+              {canPrecheck ? (
+                <Button
+                  variant="outlined"
+                  size="large"
+                  onClick={() => precheck.mutate(url)}
+                  disabled={precheck.isPending || createSummary.isPending}
+                  startIcon={
+                    precheck.isPending ? (
+                      <CircularProgress size={18} color="inherit" />
+                    ) : undefined
+                  }
+                >
+                  {precheck.isPending ? "Checking…" : "Quick check"}
+                </Button>
+              ) : null}
               <Button
                 variant="text"
                 onClick={trySample}

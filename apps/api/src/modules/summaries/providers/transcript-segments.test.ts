@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { compactTranscriptSegments } from "./transcript-segments.js";
+import {
+  buildTranscriptWindows,
+  compactTranscriptSegments,
+} from "./transcript-segments.js";
 
 describe("compactTranscriptSegments", () => {
   it("joins fragments while preserving readable sentence boundaries", () => {
@@ -33,5 +36,39 @@ describe("compactTranscriptSegments", () => {
     ]);
 
     expect(result).toHaveLength(2);
+  });
+});
+
+describe("buildTranscriptWindows", () => {
+  it("groups segments into evenly timed windows and keeps silent ones", () => {
+    const windows = buildTranscriptWindows(
+      [
+        { startSeconds: 0, endSeconds: 30, text: "Intro." },
+        { startSeconds: 30, endSeconds: 60, text: "Context." },
+        { startSeconds: 200, endSeconds: 240, text: "Method." },
+      ],
+      240,
+    );
+
+    expect(windows).toEqual([
+      { startSeconds: 0, endSeconds: 60, text: "Intro. Context." },
+      { startSeconds: 60, endSeconds: 120, text: "" },
+      { startSeconds: 120, endSeconds: 180, text: "" },
+      { startSeconds: 180, endSeconds: 240, text: "Method." },
+    ]);
+  });
+
+  it("caps very long videos at twelve windows", () => {
+    const segments = Array.from({ length: 120 }, (_, index) => ({
+      startSeconds: index * 60,
+      endSeconds: index * 60 + 60,
+      text: `Line ${index}.`,
+    }));
+
+    expect(buildTranscriptWindows(segments, 7_200)).toHaveLength(12);
+  });
+
+  it("returns no windows for an empty transcript", () => {
+    expect(buildTranscriptWindows([], 0)).toEqual([]);
   });
 });

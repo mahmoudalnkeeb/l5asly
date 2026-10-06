@@ -238,6 +238,56 @@ describe("Summary workflow", () => {
     });
   });
 
+  it("runs a quick check for a YouTube link and hides it once the link changes", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        data: {
+          title: "Kubernetes in 100 seconds",
+          channel: "Fireship",
+          durationSeconds: 128,
+          verdict: {
+            recommendation: "skip",
+            confidence: 0.9,
+            headline: "This video doesn't answer your question",
+            reason: "It does not appear to answer your question.",
+            signals: {
+              answersQuestion: 0.1,
+              informationDensity: 0.8,
+              padding: 0.1,
+              knowledgeGap: 0.2,
+            },
+          },
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    renderUi(<SummaryForm />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Paste a link" }));
+    expect(
+      screen.queryByRole("button", { name: "Quick check" }),
+    ).not.toBeInTheDocument();
+    const urlField = screen.getByRole("textbox", { name: "Video URL" });
+    fireEvent.change(urlField, {
+      target: { value: "https://youtu.be/-xbzGngfQEw" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Quick check" }));
+
+    expect(await screen.findByText("Likely skip")).toBeInTheDocument();
+    expect(
+      screen.getByText("Doesn't answer your question"),
+    ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/summaries/precheck",
+      expect.objectContaining({ method: "POST" }),
+    );
+
+    fireEvent.change(urlField, {
+      target: { value: "https://youtu.be/another" },
+    });
+    expect(screen.queryByText("Likely skip")).not.toBeInTheDocument();
+  });
+
   it("submits the selected file as multipart data", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
@@ -407,6 +457,53 @@ describe("job recovery and loading", () => {
 });
 
 describe("Summary result", () => {
+  it("shows the relevance timeline, verdict signals and unverified points", () => {
+    renderResult({
+      ...result,
+      sections: [
+        {
+          title: "Main idea",
+          body: "A practical explanation.",
+          support: "supported",
+        },
+        { title: "Pricing", body: "It costs $40.", support: "unsupported" },
+      ],
+      verdict: {
+        ...result.verdict,
+        signals: {
+          answersQuestion: null,
+          informationDensity: 0.8,
+          padding: 0.7,
+          knowledgeGap: 0.1,
+        },
+      },
+      timeline: [
+        { startSeconds: 0, endSeconds: 10, relevance: 0.1 },
+        { startSeconds: 10, endSeconds: 20, relevance: 0.9 },
+      ],
+    });
+
+    expect(screen.getByText("Dense content")).toBeInTheDocument();
+    expect(screen.getByText("Lots of filler")).toBeInTheDocument();
+    expect(screen.getByText(/Focus on/)).toHaveTextContent(
+      "Focus on 0:10 of 0:20",
+    );
+    expect(
+      screen.getByRole("listitem", { name: "0:10–0:20, 90% relevant" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Not found in transcript")).toHaveLength(1);
+  });
+
+  it("renders older results without a timeline or signals", () => {
+    renderResult(result);
+    expect(
+      screen.queryByRole("heading", { name: "Where the value is" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("list", { name: "Verdict signals" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("handles a concise answer without optional notes or next steps", () => {
     renderResult({
       ...result,

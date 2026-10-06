@@ -7,13 +7,16 @@ import { z } from "zod";
 
 import {
   createUrlSummarySchema,
+  precheckRequestSchema,
   summaryOptionsSchema,
   type ApiResponse,
+  type PrecheckResult,
   type SummaryJob,
   type SummaryListItem,
 } from "@l5sly/contracts";
 
 import { AppError } from "../../errors.js";
+import { PrecheckService } from "./precheck-service.js";
 import { SummaryJobRunner } from "./summary-job-runner.js";
 import { SummaryService } from "./summary-service.js";
 
@@ -22,9 +25,17 @@ const summaryIdSchema = z.string().uuid();
 export function createSummaryRouter(options: {
   summaryService: SummaryService;
   jobRunner: SummaryJobRunner;
+  precheckService: PrecheckService;
   upload: multer.Multer;
 }): Router {
   const router = Router();
+
+  router.post("/precheck", async (request, response) => {
+    const input = precheckRequestSchema.parse(request.body);
+    const result = await options.precheckService.check(input);
+    const body: ApiResponse<PrecheckResult> = { data: result };
+    response.json(body);
+  });
 
   router.post("/url", async (request, response) => {
     const input = createUrlSummarySchema.parse(request.body);

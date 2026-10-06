@@ -3,8 +3,26 @@ import { mkdir, readdir, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 
 import { fileTypeFromFile } from "file-type";
+import { z } from "zod";
 
 import { ProviderError, ProviderTimeoutError } from "../../errors.js";
+import type {
+  VideoMetadata,
+  VideoMetadataSource,
+} from "./providers/provider-contracts.js";
+
+const ytDlpMetadataSchema = z.object({
+  title: z.string().min(1),
+  channel: z.string().nullish(),
+  uploader: z.string().nullish(),
+  duration: z.number().nonnegative().nullish(),
+  description: z.string().nullish(),
+  chapters: z
+    .array(z.object({ title: z.string(), start_time: z.number() }))
+    .nullish(),
+});
+
+const METADATA_OUTPUT_LIMIT = 20 * 1024 * 1024;
 
 export interface DownloadedMedia {
   path: string;
@@ -21,8 +39,45 @@ interface YoutubeDownloaderOptions {
   timeoutMs: number;
 }
 
-export class YtDlpYoutubeDownloader implements YoutubeDownloader {
+export class YtDlpYoutubeDownloader
+  implements YoutubeDownloader, VideoMetadataSource
+{
   constructor(private readonly options: YoutubeDownloaderOptions) {}
+
+  async fetchMetadata(url: string): Promise<VideoMetadata> {
+    const output = await this.runDownloader([
+      "--no-playlist",
+      "--no-warnings",
+      "--skip-download",
+      "--dump-single-json",
+      url,
+    ]);
+
+    let json: unknown;
+    try {
+      json = JSON.parse(output);
+    } catch (error) {
+      throw new ProviderError("yt-dlp returned unreadable video details.", error);
+    }
+    const parsed = ytDlpMetadataSchema.safeParse(json);
+    if (!parsed.success) {
+      throw new ProviderError(
+        "yt-dlp returned incomplete video details.",
+        parsed.error,
+      );
+    }
+
+    return {
+      title: parsed.data.title,
+      channel: parsed.data.channel ?? parsed.data.uploader ?? null,
+      durationSeconds: parsed.data.duration ?? null,
+      description: parsed.data.description ?? "",
+      chapters: (parsed.data.chapters ?? []).map((chapter) => ({
+        title: chapter.title,
+        startSeconds: chapter.start_time,
+      })),
+    };
+  }
 
   async download(url: string, jobId: string): Promise<DownloadedMedia> {
     await mkdir(this.options.downloadDirectory, { recursive: true });
@@ -68,12 +123,13 @@ export class YtDlpYoutubeDownloader implements YoutubeDownloader {
     }
   }
 
-  private async runDownloader(args: string[]): Promise<void> {
-    await new Promise<void>((resolve, reject) => {
+  private async runDownloader(args: string[]): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
       const child = spawn(this.options.executablePath, args, {
-        stdio: ["ignore", "ignore", "pipe"],
+        stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
       });
+      let output = "";
       let errorOutput = "";
       let settled = false;
       let timedOut = false;
@@ -91,6 +147,12 @@ export class YtDlpYoutubeDownloader implements YoutubeDownloader {
         clearTimeout(timeout);
         callback();
       };
+
+      child.stdout.on("data", (chunk: Buffer) => {
+        if (output.length < METADATA_OUTPUT_LIMIT) {
+          output += chunk.toString();
+        }
+      });
 
       child.stderr.on("data", (chunk: Buffer) => {
         errorOutput = `${errorOutput}${chunk.toString()}`.slice(-2_000);
@@ -114,7 +176,7 @@ export class YtDlpYoutubeDownloader implements YoutubeDownloader {
           }
 
           if (exitCode === 0) {
-            resolve();
+            resolve(output);
             return;
           }
 

@@ -6,18 +6,22 @@ import { createDatabase } from "./database.js";
 import { logger } from "./logger.js";
 import { MediaPreparer } from "./modules/summaries/media-preparer.js";
 import { DeepgramTranscriptionProvider } from "./modules/summaries/providers/deepgram-provider.js";
-import { JevVerdictProvider } from "./modules/summaries/providers/jev-verdict-provider.js";
+import { JevProvider } from "./modules/summaries/providers/jev-provider.js";
 import {
+  MockInsightProvider,
   MockSummaryProvider,
   MockTranscriptionProvider,
   MockVerdictProvider,
+  MockVideoMetadataSource,
 } from "./modules/summaries/providers/mock-providers.js";
 import { OpenAiSummaryProvider } from "./modules/summaries/providers/openai-summary-provider.js";
 import type {
+  InsightProvider,
   SummaryProvider,
   TranscriptionProvider,
   VerdictProvider,
 } from "./modules/summaries/providers/provider-contracts.js";
+import { PrecheckService } from "./modules/summaries/precheck-service.js";
 import { SummaryJobRunner } from "./modules/summaries/summary-job-runner.js";
 import { SummaryRepository } from "./modules/summaries/summary-repository.js";
 import { SummaryService } from "./modules/summaries/summary-service.js";
@@ -35,23 +39,36 @@ export function buildApplication(config: AppConfig): ApplicationRuntime {
   repository.failInterruptedJobs();
 
   const providers = createProviders(config);
-  const summaryService = new SummaryService(
-    repository,
-    new MediaPreparer(config.uploadDirectory),
-    providers.transcription,
-    providers.summary,
-    providers.verdict,
-    logger,
+  const youtubeDownloader =
     config.providerMode === "live"
       ? new YtDlpYoutubeDownloader({
           downloadDirectory: config.uploadDirectory,
           executablePath: config.ytdlpPath,
           timeoutMs: config.ytdlpTimeoutMs,
         })
-      : undefined,
+      : undefined;
+  const summaryService = new SummaryService({
+    repository,
+    mediaPreparer: new MediaPreparer(config.uploadDirectory),
+    transcriptionProvider: providers.transcription,
+    summaryProvider: providers.summary,
+    verdictProvider: providers.verdict,
+    insightProvider: providers.insight,
+    log: logger,
+    youtubeDownloader,
+  });
+  const precheckService = new PrecheckService(
+    youtubeDownloader ?? new MockVideoMetadataSource(),
+    providers.insight,
   );
   const jobRunner = new SummaryJobRunner(summaryService, logger);
-  const app = createApp({ config, summaryService, jobRunner, log: logger });
+  const app = createApp({
+    config,
+    summaryService,
+    jobRunner,
+    precheckService,
+    log: logger,
+  });
 
   void summaryService
     .cleanupExpiredMedia()
@@ -84,12 +101,14 @@ function createProviders(config: AppConfig): {
   transcription: TranscriptionProvider;
   summary: SummaryProvider;
   verdict: VerdictProvider;
+  insight: InsightProvider;
 } {
   if (config.providerMode === "mock") {
     return {
       transcription: new MockTranscriptionProvider(),
       summary: new MockSummaryProvider(),
       verdict: new MockVerdictProvider(),
+      insight: new MockInsightProvider(),
     };
   }
 
@@ -98,6 +117,13 @@ function createProviders(config: AppConfig): {
       "Live provider credentials are missing from validated configuration.",
     );
   }
+
+  const jev = new JevProvider({
+    apiKey: config.jevApiKey,
+    baseUrl: config.jevBaseUrl,
+    model: config.jevModel,
+    timeoutMs: config.jevTimeoutMs,
+  });
 
   return {
     transcription: new DeepgramTranscriptionProvider({
@@ -110,11 +136,7 @@ function createProviders(config: AppConfig): {
       model: config.llmModel,
       timeoutMs: config.llmTimeoutMs,
     }),
-    verdict: new JevVerdictProvider({
-      apiKey: config.jevApiKey,
-      baseUrl: config.jevBaseUrl,
-      model: config.jevModel,
-      timeoutMs: config.jevTimeoutMs,
-    }),
+    verdict: jev,
+    insight: jev,
   };
 }

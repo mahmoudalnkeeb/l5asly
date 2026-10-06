@@ -9,6 +9,7 @@ import type {
   SummaryListItem,
   SummaryOptions,
   SummaryResult,
+  TimelineWindow,
   WatchVerdict,
   SummaryLanguage,
   JobStep,
@@ -20,7 +21,9 @@ import { AppError, NotFoundError } from "../../errors.js";
 import { MediaPreparer, type PreparedMedia } from "./media-preparer.js";
 import type {
   GeneratedSummary,
+  InsightProvider,
   MediaInput,
+  SectionSupport,
   SummaryProvider,
   TranscriptionProvider,
   VerdictProvider,
@@ -40,17 +43,38 @@ export interface UploadedSummaryInput {
   options: SummaryOptions;
 }
 
+export interface SummaryServiceDependencies {
+  repository: SummaryRepository;
+  mediaPreparer: MediaPreparer;
+  transcriptionProvider: TranscriptionProvider;
+  summaryProvider: SummaryProvider;
+  verdictProvider: VerdictProvider;
+  insightProvider: InsightProvider;
+  log: Logger;
+  youtubeDownloader?: YoutubeDownloader;
+}
+
 export class SummaryService {
   private readonly recoveryInProgress = new Set<string>();
-  constructor(
-    private readonly repository: SummaryRepository,
-    private readonly mediaPreparer: MediaPreparer,
-    private readonly transcriptionProvider: TranscriptionProvider,
-    private readonly summaryProvider: SummaryProvider,
-    private readonly verdictProvider: VerdictProvider,
-    private readonly log: Logger,
-    private readonly youtubeDownloader?: YoutubeDownloader,
-  ) {}
+  private readonly repository: SummaryRepository;
+  private readonly mediaPreparer: MediaPreparer;
+  private readonly transcriptionProvider: TranscriptionProvider;
+  private readonly summaryProvider: SummaryProvider;
+  private readonly verdictProvider: VerdictProvider;
+  private readonly insightProvider: InsightProvider;
+  private readonly log: Logger;
+  private readonly youtubeDownloader?: YoutubeDownloader;
+
+  constructor(dependencies: SummaryServiceDependencies) {
+    this.repository = dependencies.repository;
+    this.mediaPreparer = dependencies.mediaPreparer;
+    this.transcriptionProvider = dependencies.transcriptionProvider;
+    this.summaryProvider = dependencies.summaryProvider;
+    this.verdictProvider = dependencies.verdictProvider;
+    this.insightProvider = dependencies.insightProvider;
+    this.log = dependencies.log;
+    this.youtubeDownloader = dependencies.youtubeDownloader;
+  }
 
   createFromUrl(input: CreateUrlSummaryInput): SummaryJob {
     const url = new URL(input.url);
@@ -287,40 +311,68 @@ export class SummaryService {
         68,
         "Generating the brief - this can take several minutes",
       );
-      const [summaryResult, verdictResult] = await Promise.allSettled([
-        (async () => {
-          if (checkpoint.summary) return checkpoint.summary;
-          const summary = await this.runProviderCall(jobLog, "summary", () =>
-            this.summaryProvider.summarize({
-              transcript: transcription,
-              language: job.options.language,
-              depth: job.options.depth,
-              expectation: job.options.expectation,
-              viewerProfile: job.options.viewerProfile,
-            }),
-          );
-          this.ensureNotCancelled(id);
-          checkpoint.summary = summary;
-          this.repository.saveCheckpoint(id, checkpoint);
-          return summary;
-        })(),
-        (async () => {
-          if (checkpoint.verdict) return checkpoint.verdict;
-          const verdict = await this.runProviderCall(jobLog, "verdict", () =>
-            this.verdictProvider.decide({
-              transcript: transcription.text,
-              durationSeconds: transcription.durationSeconds,
-              expectation: job.options.expectation,
-              viewerProfile: job.options.viewerProfile,
-              language: job.options.language,
-            }),
-          );
-          this.ensureNotCancelled(id);
-          checkpoint.verdict = verdict;
-          this.repository.saveCheckpoint(id, checkpoint);
-          return verdict;
-        })(),
-      ]);
+      const [summaryResult, verdictResult, timelineResult] =
+        await Promise.allSettled([
+          (async () => {
+            if (checkpoint.summary) return checkpoint.summary;
+            const draftSummary = await this.runProviderCall(
+              jobLog,
+              "summary",
+              () =>
+                this.summaryProvider.summarize({
+                  transcript: transcription,
+                  language: job.options.language,
+                  depth: job.options.depth,
+                  expectation: job.options.expectation,
+                  viewerProfile: job.options.viewerProfile,
+                }),
+            );
+            this.ensureNotCancelled(id);
+            const summary = await this.checkSummaryGrounding(
+              draftSummary,
+              transcription.text,
+              jobLog,
+            );
+            this.ensureNotCancelled(id);
+            checkpoint.summary = summary;
+            this.repository.saveCheckpoint(id, checkpoint);
+            return summary;
+          })(),
+          (async () => {
+            if (checkpoint.verdict) return checkpoint.verdict;
+            const verdict = await this.runProviderCall(jobLog, "verdict", () =>
+              this.verdictProvider.decide({
+                transcript: transcription.text,
+                durationSeconds: transcription.durationSeconds,
+                expectation: job.options.expectation,
+                viewerProfile: job.options.viewerProfile,
+                language: job.options.language,
+              }),
+            );
+            this.ensureNotCancelled(id);
+            checkpoint.verdict = verdict;
+            this.repository.saveCheckpoint(id, checkpoint);
+            return verdict;
+          })(),
+          (async () => {
+            if (checkpoint.timeline) return checkpoint.timeline;
+            const timeline = await this.runProviderCall(
+              jobLog,
+              "timeline",
+              () =>
+                this.insightProvider.scoreTimeline({
+                  segments: transcription.segments,
+                  durationSeconds: transcription.durationSeconds,
+                  expectation: job.options.expectation,
+                  viewerProfile: job.options.viewerProfile,
+                }),
+            );
+            this.ensureNotCancelled(id);
+            checkpoint.timeline = timeline;
+            this.repository.saveCheckpoint(id, checkpoint);
+            return timeline;
+          })(),
+        ]);
       this.ensureNotCancelled(id);
 
       if (summaryResult.status === "rejected") {
@@ -351,9 +403,23 @@ export class SummaryService {
         );
       }
 
+      // The timeline is an optional extra; the brief is still useful without it.
+      let timeline: TimelineWindow[] | undefined;
+      if (timelineResult.status === "fulfilled") {
+        timeline = timelineResult.value.length
+          ? timelineResult.value
+          : undefined;
+      } else {
+        jobLog.warn(
+          { err: timelineResult.reason, provider: "timeline" },
+          "Completing the job without a relevance timeline",
+        );
+      }
+
       const result: SummaryResult = {
         ...generatedSummary,
         verdict,
+        timeline,
         transcript: transcription.segments,
         durationSeconds: transcription.durationSeconds,
         sourceLanguage: transcription.detectedLanguage,
@@ -474,7 +540,12 @@ export class SummaryService {
 
   private async runProviderCall<T>(
     jobLog: Logger,
-    provider: "transcription" | "summary" | "verdict",
+    provider:
+      | "transcription"
+      | "summary"
+      | "verdict"
+      | "timeline"
+      | "grounding",
     operation: () => Promise<T>,
   ): Promise<T> {
     const startedAt = Date.now();
@@ -494,6 +565,40 @@ export class SummaryService {
       );
       throw error;
     }
+  }
+
+  // Grounding is an optional quality check, so a failure keeps the unchecked summary.
+  private async checkSummaryGrounding(
+    summary: GeneratedSummary,
+    transcript: string,
+    jobLog: Logger,
+  ): Promise<GeneratedSummary> {
+    let support: SectionSupport[] | null;
+    try {
+      support = await this.runProviderCall(jobLog, "grounding", () =>
+        this.insightProvider.checkGrounding({
+          transcript,
+          sections: summary.sections,
+        }),
+      );
+    } catch (error) {
+      jobLog.warn(
+        { err: error, provider: "grounding" },
+        "Keeping the summary without a grounding check",
+      );
+      return summary;
+    }
+    if (!support || support.length !== summary.sections.length) {
+      return summary;
+    }
+
+    return {
+      ...summary,
+      sections: summary.sections.map((section, index) => ({
+        ...section,
+        support: support[index],
+      })),
+    };
   }
 
   private createFallbackVerdict(
