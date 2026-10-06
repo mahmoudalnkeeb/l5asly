@@ -119,7 +119,7 @@ function SummaryRow({ summary }: { summary: SummaryListItem }) {
     <ListItemButton
       component={Link}
       to={`/summaries/${summary.id}`}
-      sx={{ display: "flex", gap: 2, p: { xs: 2, sm: 3 } }}
+      sx={{ display: "flex", gap: 2, p: { xs: 2, sm: 3 }, borderRadius: 0 }}
     >
       <Box sx={{ minWidth: 0, flex: 1 }}>
         <Stack

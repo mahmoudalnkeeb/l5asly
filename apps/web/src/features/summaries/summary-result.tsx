@@ -356,9 +356,7 @@ export function SummaryResult({
           }}
         >
           <Box component="article" sx={{ minWidth: 0 }}>
-            <Paper
-              sx={{ p: 3, mb: 4, borderRadius: 4, bgcolor: "var(--accent)" }}
-            >
+            <Paper sx={{ p: 3, mb: 4, bgcolor: "var(--accent)" }}>
               <Typography variant="h3" color="primary">
                 Direct answer
               </Typography>
@@ -539,7 +537,7 @@ export function SummaryResult({
                     onClick={() => jumpToTranscript(moment.startSeconds)}
                     aria-label={`${moment.title}, jump to transcript at ${formatTimestamp(moment.startSeconds)}`}
                     {...getContentProps(`${moment.title} ${moment.reason}`)}
-                    sx={{ gap: 1.5, borderRadius: 3, px: 1.5, mx: -1.5 }}
+                    sx={{ gap: 1.5, px: 1.5, mx: -1.5 }}
                   >
                     <Typography
                       component="time"

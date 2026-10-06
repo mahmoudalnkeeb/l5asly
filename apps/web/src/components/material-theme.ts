@@ -1,5 +1,13 @@
 import { createTheme } from "@mui/material/styles";
 
+// One radius scale for the whole app. `sx` borderRadius numbers multiply the
+// 4px base, so 1 = small, 2 = medium, 3 = large.
+const RADIUS = {
+  small: 4, // inputs, chips, progress bars, timeline segments
+  medium: 8, // buttons, list rows, alerts, interactive tiles
+  large: 12, // cards and page surfaces
+} as const;
+
 export function createMaterialTheme(mode: "light" | "dark") {
   const isDark = mode === "dark";
   const theme = createTheme({
@@ -21,7 +29,7 @@ export function createMaterialTheme(mode: "light" | "dark") {
       error: { main: isDark ? "#ffb4ab" : "#ba1a1a" },
       success: { main: isDark ? "#9cd5aa" : "#286b43" },
     },
-    shape: { borderRadius: 12 },
+    shape: { borderRadius: RADIUS.small },
     typography: {
       fontFamily: '"IBM Plex Sans", "IBM Plex Sans Arabic", sans-serif',
       h1: {
@@ -60,22 +68,32 @@ export function createMaterialTheme(mode: "light" | "dark") {
             overflow: "visible",
             overflowWrap: "anywhere",
           },
+          root: { borderRadius: RADIUS.medium },
         },
       },
       MuiButton: {
         defaultProps: { disableElevation: true },
         styleOverrides: {
-          root: { borderRadius: 24, minHeight: 40, paddingInline: 24 },
+          root: {
+            borderRadius: RADIUS.medium,
+            minHeight: 40,
+            paddingInline: 20,
+          },
           sizeLarge: { minHeight: 48 },
         },
       },
       MuiPaper: {
         defaultProps: { elevation: 0 },
-        styleOverrides: { root: { backgroundImage: "none" } },
+        styleOverrides: {
+          root: { backgroundImage: "none" },
+          rounded: { borderRadius: RADIUS.large },
+        },
       },
       MuiAppBar: { defaultProps: { elevation: 0, color: "inherit" } },
       MuiTextField: { defaultProps: { fullWidth: true, variant: "outlined" } },
-      MuiOutlinedInput: { styleOverrides: { root: { borderRadius: 8 } } },
+      MuiOutlinedInput: {
+        styleOverrides: { root: { borderRadius: RADIUS.small } },
+      },
       MuiTab: {
         styleOverrides: {
           root: { textTransform: "none", minHeight: 56, fontWeight: 600 },
@@ -111,7 +129,17 @@ export function createMaterialTheme(mode: "light" | "dark") {
       MuiAccordionDetails: {
         styleOverrides: { root: { padding: "8px 0 16px" } },
       },
-      MuiChip: { styleOverrides: { root: { fontWeight: 500 } } },
+      MuiChip: {
+        styleOverrides: {
+          root: { fontWeight: 500, borderRadius: RADIUS.small },
+        },
+      },
+      MuiToggleButtonGroup: {
+        styleOverrides: { root: { borderRadius: RADIUS.medium } },
+      },
+      MuiListItemButton: {
+        styleOverrides: { root: { borderRadius: RADIUS.medium } },
+      },
     },
   });
   const { palette } = theme;

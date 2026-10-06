@@ -145,7 +145,6 @@ export function VerdictPanel({
       sx={(theme) => ({
         p: { xs: 2.5, sm: 3 },
         mb: 3,
-        borderRadius: 4,
         bgcolor: alpha(theme.palette[style.color].main, 0.1),
         display: "grid",
         gridTemplateColumns: {
@@ -261,7 +260,7 @@ export function RelevanceTimeline({
                   onClick={() => onSelectTime(window.startSeconds)}
                   sx={(theme) => ({
                     flex: 1,
-                    borderRadius: "4px",
+                    borderRadius: 1,
                     bgcolor: alpha(
                       theme.palette.primary.main,
                       0.12 + 0.88 * window.relevance,
