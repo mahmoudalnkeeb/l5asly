@@ -17,6 +17,7 @@ import SettingsBrightnessOutlined from "@mui/icons-material/SettingsBrightnessOu
 import { useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
+import { LogoMark } from "@/components/logo";
 import { useTheme, type Theme } from "@/components/theme-provider";
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -61,30 +62,26 @@ export function AppShell({ children }: { children: ReactNode }) {
               sx={{
                 display: "flex",
                 alignItems: "center",
-                gap: 1,
+                gap: 0.75,
                 textDecoration: "none",
                 color: "text.primary",
               }}
             >
-              <svg
-                width="28"
-                height="28"
-                viewBox="0 0 64 64"
-                fill="none"
-                aria-hidden="true"
+              <Box
+                component="span"
+                sx={{ display: "flex", color: "primary.main" }}
               >
-                <path
-                  d="M8 16.5C8 8.77 16.45 3.98 23.1 8.02L53.83 26.7C60.06 30.49 60.06 39.51 53.83 43.3L23.1 61.98C16.45 66.02 8 61.23 8 53.5V16.5Z"
-                  fill="#286b43"
-                />
-                <path
-                  d="M19 27.5H42M19 35H36M19 42.5H30"
-                  stroke="white"
-                  strokeWidth="4.5"
-                  strokeLinecap="round"
-                />
-              </svg>
-              <Typography component="span" variant="h3">
+                <LogoMark size={32} />
+              </Box>
+              <Typography
+                component="span"
+                sx={{
+                  fontSize: "1.25rem",
+                  fontWeight: 700,
+                  letterSpacing: "-0.02em",
+                  lineHeight: 1,
+                }}
+              >
                 L5asly
               </Typography>
             </Box>

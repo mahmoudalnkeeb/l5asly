@@ -84,6 +84,10 @@ const formSchema = z
 
 type SummaryFormValues = z.infer<typeof formSchema>;
 
+// Both form columns open with a header row of this height so the upload box
+// and the question field below them start on the same line.
+const FORM_HEADER_HEIGHT = 48;
+
 const depthDescriptions = {
   quick: "Key points and recommended moments.",
   detailed: "More context and supporting notes.",
@@ -211,6 +215,7 @@ export function SummaryForm() {
               aria-label="Video source"
               sx={{
                 alignSelf: "flex-start",
+                height: FORM_HEADER_HEIGHT,
                 width: { xs: "100%", sm: "auto" },
               }}
             >
@@ -384,6 +389,7 @@ export function SummaryForm() {
             <Stack
               direction="row"
               sx={{
+                minHeight: FORM_HEADER_HEIGHT,
                 alignItems: "center",
                 justifyContent: "space-between",
                 gap: 1,

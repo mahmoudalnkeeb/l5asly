@@ -585,6 +585,39 @@ describe("Summary result", () => {
     ).toBeInTheDocument();
   });
 
+  it("jumps from a recommended moment or timeline part to its transcript segment", () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    renderResult({
+      ...result,
+      timeline: [
+        { startSeconds: 0, endSeconds: 10, relevance: 0.2 },
+        { startSeconds: 10, endSeconds: 20, relevance: 0.9 },
+      ],
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Practical demonstration, jump to transcript at 0:15",
+      }),
+    );
+
+    expect(screen.getByRole("tab", { name: "Transcript" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    const target = document.getElementById("segment-1");
+    expect(target).toHaveTextContent("Try it again, then try another way.");
+    expect(target).toHaveFocus();
+    expect(scrollIntoView).toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Summary" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Jump to transcript at 0:00" }),
+    );
+    expect(document.getElementById("segment-0")).toHaveFocus();
+  });
+
   it("uses RTL content and list spacing for Arabic, including titles beginning with Latin names", () => {
     const arabicResult: SummaryResultData = {
       ...result,

@@ -8,7 +8,7 @@ import {
   Divider,
   InputAdornment,
   List,
-  ListItem,
+  ListItemButton,
   ListItemText,
   Paper,
   Stack,
@@ -21,7 +21,7 @@ import ArrowBack from "@mui/icons-material/ArrowBack";
 import ContentCopyOutlined from "@mui/icons-material/ContentCopyOutlined";
 import DownloadOutlined from "@mui/icons-material/DownloadOutlined";
 import SearchOutlined from "@mui/icons-material/SearchOutlined";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 import type {
@@ -29,26 +29,24 @@ import type {
   SummaryResult as SummaryResultData,
 } from "@l5sly/contracts";
 import { useNotification } from "@/components/notifications";
-import { formatTimestamp } from "@/features/summaries/format";
-import {
-  RelevanceTimeline,
-  VerdictSignalChips,
-} from "@/features/summaries/verdict-insights";
+import { formatTimestamp, getContentProps } from "@/features/summaries/format";
+import { VerdictPanel } from "@/features/summaries/verdict-insights";
+
+// Icon-only on phones so the actions share one row with the back link.
+const compactActionSx = {
+  minWidth: { xs: 44, sm: 64 },
+  px: { xs: 1.25, sm: 3 },
+  "& .MuiButton-startIcon": {
+    ml: { xs: 0, sm: "-4px" },
+    mr: { xs: 0, sm: 1 },
+  },
+} as const;
 
 interface SummaryResultProps {
   result: SummaryResultData;
   sourceName: string;
   requestedLanguage: SummaryLanguage;
 }
-
-const verdictLabels: Record<
-  SummaryResultData["verdict"]["recommendation"],
-  string
-> = {
-  watch: "Worth watching",
-  "watch-key-moments": "Key moments only",
-  skip: "Brief is enough",
-};
 
 const languageLabels: Record<string, string> = {
   ar: "Arabic",
@@ -76,13 +74,6 @@ function formatLanguageLabel(
     languageLabels[languageCode] ??
     sourceLanguage
   );
-}
-
-function getContentProps(text: string): { dir: "rtl" | "auto"; lang?: "ar" } {
-  if (/\p{Script=Arabic}/u.test(text)) {
-    return { dir: "rtl", lang: "ar" };
-  }
-  return { dir: "auto" };
 }
 
 function highlightTranscriptText(text: string, search: string): ReactNode {
@@ -155,6 +146,8 @@ export function SummaryResult({
 }: SummaryResultProps) {
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState("summary");
+  // Index of the transcript segment a moment or timeline part jumped to.
+  const [jumpedSegment, setJumpedSegment] = useState<number | null>(null);
   const notify = useNotification();
   const matchingTranscript = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
@@ -165,6 +158,23 @@ export function SummaryResult({
       segment.text.toLocaleLowerCase().includes(query),
     );
   }, [result.transcript, search]);
+
+  useEffect(() => {
+    if (tab !== "transcript" || jumpedSegment === null) return;
+    const element = document.getElementById(`segment-${jumpedSegment}`);
+    element?.scrollIntoView({ behavior: "smooth", block: "center" });
+    element?.focus({ preventScroll: true });
+  }, [tab, jumpedSegment]);
+
+  function jumpToTranscript(seconds: number): void {
+    let segmentIndex = 0;
+    result.transcript.forEach((segment, index) => {
+      if (segment.startSeconds <= seconds) segmentIndex = index;
+    });
+    setSearch("");
+    setJumpedSegment(segmentIndex);
+    setTab("transcript");
+  }
 
   async function copySummary(): Promise<void> {
     const text = [
@@ -230,32 +240,42 @@ export function SummaryResult({
       }}
     >
       <Stack
-        direction={{ xs: "column", sm: "row" }}
+        direction="row"
         spacing={1}
-        sx={{ mb: 3, justifyContent: "space-between" }}
+        sx={{ mb: 3, justifyContent: "space-between", alignItems: "center" }}
       >
-        <Button
-          component={Link}
-          to="/library"
-          startIcon={<ArrowBack />}
-          sx={{ alignSelf: "flex-start" }}
-        >
+        <Button component={Link} to="/library" startIcon={<ArrowBack />}>
           Library
         </Button>
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+        <Stack direction="row" spacing={1}>
+          {/* Labels collapse to icons on phones; aria-label keeps the name stable. */}
           <Button
             variant="outlined"
+            aria-label="Copy summary"
             startIcon={<ContentCopyOutlined />}
             onClick={() => void copySummary()}
+            sx={compactActionSx}
           >
-            Copy summary
+            <Box
+              component="span"
+              sx={{ display: { xs: "none", sm: "inline" } }}
+            >
+              Copy summary
+            </Box>
           </Button>
           <Button
             variant="contained"
+            aria-label="Download notes"
             startIcon={<DownloadOutlined />}
             onClick={downloadNotes}
+            sx={compactActionSx}
           >
-            Download notes
+            <Box
+              component="span"
+              sx={{ display: { xs: "none", sm: "inline" } }}
+            >
+              Download notes
+            </Box>
           </Button>
         </Stack>
       </Stack>
@@ -287,6 +307,13 @@ export function SummaryResult({
           · {formatLanguageLabel(result.sourceLanguage, requestedLanguage)}
         </Typography>
       </Box>
+
+      <VerdictPanel
+        verdict={result.verdict}
+        timeline={result.timeline}
+        durationSeconds={result.durationSeconds}
+        onSelectTime={jumpToTranscript}
+      />
 
       <Tabs
         value={tab}
@@ -329,7 +356,7 @@ export function SummaryResult({
           }}
         >
           <Box component="article" sx={{ minWidth: 0 }}>
-            <Paper sx={{ p: 3, bgcolor: "action.selected", mb: 4 }}>
+            <Paper sx={{ p: 3, mb: 4, bgcolor: "var(--accent)" }}>
               <Typography variant="h3" color="primary">
                 Direct answer
               </Typography>
@@ -495,83 +522,57 @@ export function SummaryResult({
             component="aside"
             sx={{ position: { md: "sticky" }, top: 88, minWidth: 0 }}
           >
-            <Paper variant="outlined" sx={{ p: 2.5, mb: 3 }}>
-              <Chip
-                size="small"
-                color="primary"
-                variant="outlined"
-                label={verdictLabels[result.verdict.recommendation]}
-                sx={{ mb: 1.5 }}
-              />
-              <Typography
-                variant="h3"
-                {...getContentProps(result.verdict.headline)}
-              >
-                {result.verdict.headline}
-              </Typography>
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                {...getContentProps(result.verdict.reason)}
-                sx={{ mt: 1 }}
-              >
-                {result.verdict.reason}
-              </Typography>
-              {result.verdict.signals ? (
-                <VerdictSignalChips signals={result.verdict.signals} />
-              ) : null}
-            </Paper>
-            {result.timeline?.length ? (
-              <RelevanceTimeline
-                timeline={result.timeline}
-                durationSeconds={result.durationSeconds}
-              />
-            ) : null}
             <Typography variant="h3" id="moments-title">
               Recommended moments
             </Typography>
             <List aria-labelledby="moments-title" disablePadding sx={{ mt: 1 }}>
               {result.recommendedMoments.map((moment) => (
-                <ListItem
+                <Box
+                  component="li"
                   key={`${moment.startSeconds}-${moment.title}`}
-                  disableGutters
-                  alignItems="flex-start"
-                  {...getContentProps(`${moment.title} ${moment.reason}`)}
-                  sx={{ gap: 1.5 }}
+                  sx={{ listStyle: "none" }}
                 >
-                  <Typography
-                    component="time"
-                    dir="ltr"
-                    lang="en"
-                    color="primary"
-                    sx={{
-                      pt: 1,
-                      fontFamily: "var(--font-mono)",
-                      fontSize: 12,
-                      whiteSpace: "nowrap",
-                      flexShrink: 0,
-                      unicodeBidi: "isolate",
-                    }}
+                  <ListItemButton
+                    alignItems="flex-start"
+                    onClick={() => jumpToTranscript(moment.startSeconds)}
+                    aria-label={`${moment.title}, jump to transcript at ${formatTimestamp(moment.startSeconds)}`}
+                    {...getContentProps(`${moment.title} ${moment.reason}`)}
+                    sx={{ gap: 1.5, px: 1.5, mx: -1.5 }}
                   >
-                    {formatTimestamp(moment.startSeconds)}
-                  </Typography>
-                  <ListItemText
-                    primary={moment.title}
-                    secondary={moment.reason}
-                    slotProps={{
-                      primary: {
-                        variant: "body2",
-                        ...getContentProps(moment.title),
-                        sx: { fontWeight: 600 },
-                      },
-                      secondary: {
-                        variant: "body2",
-                        ...getContentProps(moment.reason),
-                        sx: { mt: 0.5 },
-                      },
-                    }}
-                  />
-                </ListItem>
+                    <Typography
+                      component="time"
+                      dir="ltr"
+                      lang="en"
+                      color="primary"
+                      sx={{
+                        pt: 1,
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 12,
+                        whiteSpace: "nowrap",
+                        flexShrink: 0,
+                        unicodeBidi: "isolate",
+                      }}
+                    >
+                      {formatTimestamp(moment.startSeconds)}
+                    </Typography>
+                    <ListItemText
+                      primary={moment.title}
+                      secondary={moment.reason}
+                      slotProps={{
+                        primary: {
+                          variant: "body2",
+                          ...getContentProps(moment.title),
+                          sx: { fontWeight: 600 },
+                        },
+                        secondary: {
+                          variant: "body2",
+                          ...getContentProps(moment.reason),
+                          sx: { mt: 0.5 },
+                        },
+                      }}
+                    />
+                  </ListItemButton>
+                </Box>
               ))}
             </List>
             {!result.recommendedMoments.length ? (
@@ -676,11 +677,18 @@ export function SummaryResult({
                   moment.startSeconds >= segment.startSeconds &&
                   moment.startSeconds < segment.endSeconds,
               );
+              const segmentIndex = result.transcript.indexOf(segment);
+              const isJumpTarget = segmentIndex === jumpedSegment;
               return (
                 <Box
                   key={`${segment.startSeconds}-${segment.endSeconds}`}
+                  id={`segment-${segmentIndex}`}
+                  tabIndex={-1}
                   dir={getContentProps(segment.text).dir}
                   sx={{
+                    outline: isJumpTarget ? "2px solid" : "none",
+                    outlineColor: "primary.main",
+                    scrollMarginTop: 96,
                     display: "grid",
                     gridTemplateColumns: "64px minmax(0, 1fr)",
                     gap: 2,

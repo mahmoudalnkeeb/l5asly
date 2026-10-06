@@ -32,3 +32,14 @@ export function calculateFocusSeconds(timeline: TimelineWindow[]): number {
   }
   return total;
 }
+
+// Arabic text needs RTL direction and the Arabic font; other text follows its content.
+export function getContentProps(text: string): {
+  dir: "rtl" | "auto";
+  lang?: "ar";
+} {
+  if (/\p{Script=Arabic}/u.test(text)) {
+    return { dir: "rtl", lang: "ar" };
+  }
+  return { dir: "auto" };
+}

@@ -106,7 +106,7 @@ export function ProcessingState({
             variant="determinate"
             value={job.progress}
             aria-label="Summary progress"
-            sx={{ height: 6, borderRadius: 3 }}
+            sx={{ height: 6, borderRadius: 1 }}
           />
         </Box>
         <Stepper
