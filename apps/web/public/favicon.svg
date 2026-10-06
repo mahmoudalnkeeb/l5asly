@@ -1,10 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <defs>
-    <linearGradient id="l5asly-mark" x1="8" y1="6" x2="54" y2="58" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#5BEA8A"/>
-      <stop offset="1" stop-color="#00A878"/>
-    </linearGradient>
-  </defs>
-  <path d="M7 15.5C7 8.02 15.18 3.32 21.62 7.24L54.36 27.24C60.27 30.85 60.27 39.15 54.36 42.76L21.62 62.76C15.18 66.68 7 61.98 7 54.5V15.5Z" fill="url(#l5asly-mark)"/>
-  <path d="M18 27H41M18 35H35M18 43H29" stroke="white" stroke-width="4.5" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- Same geometry as src/components/logo.tsx. The default green stays
+       legible on light and dark tab bars; browsers that support media
+       queries in favicons get the lighter dark-mode brand green. -->
+  <style>
+    .mark { fill: #2f8a55; stroke: #2f8a55; }
+    @media (prefers-color-scheme: dark) {
+      .mark { fill: #9cd5aa; stroke: #9cd5aa; }
+    }
+  </style>
+  <mask id="summary-bars" maskUnits="userSpaceOnUse" x="0" y="0" width="48" height="48">
+    <rect width="48" height="48" fill="white"/>
+    <path d="M19 18.5H27.5M19 24H32.5M19 29.5H24.5" stroke="black" stroke-width="3.5" stroke-linecap="round"/>
+  </mask>
+  <polygon class="mark" points="16,10 16,38 41,24" stroke-width="6" stroke-linejoin="round" mask="url(#summary-bars)"/>
 </svg>
