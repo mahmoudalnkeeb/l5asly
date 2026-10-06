@@ -2,6 +2,8 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "declaration": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "outDir": "dist",
@@ -9,6 +11,5 @@
     "sourceMap": true,
     "types": ["node"]
   },
-  "include": ["src"],
-  "exclude": ["src/**/*.test.ts"]
+  "include": ["src"]
 }

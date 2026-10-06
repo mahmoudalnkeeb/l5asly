@@ -1,0 +1,107 @@
+# HTTP API
+
+Every route is under `/api`. Request and response shapes are defined in `packages/contracts/src/index.ts`, which is the source of truth. This page summarizes them.
+
+## Envelopes
+
+A successful response with a body:
+
+```json
+{ "data": { } }
+```
+
+An error response:
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "The request contains invalid values.",
+    "requestId": "8f0c6a3e-…",
+    "details": { "url": ["Invalid URL"] }
+  }
+}
+```
+
+`details` is present only for field-level problems. Every response carries an `x-request-id` header. Send your own `x-request-id` to correlate a request with the server logs. All error codes are listed in [Error codes](error-codes.md).
+
+## Endpoints
+
+| Method | Path | Success | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/api/health` | `200` | Service status and provider mode |
+| `POST` | `/api/summaries/precheck` | `200` | Quick watch verdict for a YouTube link, from metadata only. No job is created |
+| `POST` | `/api/summaries/url` | `202` | Create and queue a job from a public URL |
+| `POST` | `/api/summaries/upload` | `202` | Create and queue a job from an uploaded file |
+| `GET` | `/api/summaries` | `200` | The 30 most recent jobs |
+| `GET` | `/api/summaries/:id` | `200` | One job, with its progress, result, or failure |
+| `POST` | `/api/summaries/:id/cancel` | `200` | Cancel a queued or processing job |
+| `POST` | `/api/summaries/:id/retry` | `202` | Retry a failed job |
+| `DELETE` | `/api/summaries/:id` | `204` | Delete a finished, failed, or cancelled job and its files |
+
+`:id` must be a UUID. Anything else returns `400 VALIDATION_ERROR`.
+
+## Requests
+
+### Summary options
+
+Shared by the URL and upload endpoints (`summaryOptionsSchema`):
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `language` | `"English"` \| `"Arabic"` | Language of the written brief and verdict |
+| `sourceLanguage` | `"English"` \| `"Arabic"` | Spoken language of the video. Defaults to `language` |
+| `depth` | `"quick"` \| `"detailed"` \| `"study"` | Length and detail of the brief |
+| `expectation` | string, at most 240 characters | Optional. The viewer's question for this video |
+| `viewerProfile` | `{ background, knowledge, goals, preferences }` | Optional. A snapshot is stored with the job |
+
+### `POST /api/summaries/url`
+
+JSON body: summary options plus `url` (HTTP or HTTPS). A YouTube host without a video identifier is rejected.
+
+```json
+{
+  "url": "https://www.youtube.com/watch?v=abc123",
+  "language": "English",
+  "depth": "quick",
+  "expectation": "Is this useful for a designer?"
+}
+```
+
+### `POST /api/summaries/upload`
+
+`multipart/form-data`:
+
+- `video`: required, one audio or video file, at most `MAX_UPLOAD_MB`. The type is checked against the file content, not just the declared type.
+- The summary option fields, as text. Send `viewerProfile` as a JSON string.
+
+A rejected request deletes the uploaded file.
+
+### `POST /api/summaries/precheck`
+
+JSON body: `url` (must be a YouTube video URL), `language`, and optionally `expectation` and `viewerProfile`. Returns `{ title, channel, durationSeconds, verdict }`.
+
+### `POST /api/summaries/:id/retry`
+
+No body, or `multipart/form-data` with a `video` field. Send the file only when the job's `retryInfo.requiresUpload` is `true`. Otherwise the request is rejected with `UPLOAD_NOT_NEEDED`.
+
+## Responses
+
+### Summary job
+
+`GET /api/summaries/:id`, and the create, cancel, and retry endpoints, return a `SummaryJob`:
+
+| Field | Notes |
+| --- | --- |
+| `id`, `status`, `source { type, name }`, `options` | `status` is `queued`, `processing`, `completed`, `failed`, or `cancelled` |
+| `progress`, `stage`, `stageStartedAt` | Progress from 0 to 100, and the human-readable step |
+| `result` | `null` until the job completes. Then it holds the title, overview, viewer answer, sections, notes, recommended moments, verdict, timeline, transcript, and duration |
+| `error`, `errorCode`, `failedStep`, `errorDetails` | Set when the job is `failed` |
+| `retryInfo` | Present only when the job is `failed`: `{ fromStep, requiresUpload, reason }` |
+| `attempt`, `createdAt`, `updatedAt` | |
+
+Poll this endpoint while the job is `queued` or `processing`. The web app polls every 900 ms.
+
+### Summary list item
+
+`GET /api/summaries` returns a lighter shape: `id`, `status`, `source`, `progress`, `stage`, `title`, `verdict`, `durationSeconds`, `createdAt`, and `updatedAt`.
