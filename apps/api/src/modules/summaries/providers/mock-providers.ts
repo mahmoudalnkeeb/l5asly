@@ -1,15 +1,28 @@
-import type { SummaryLanguage, WatchVerdict } from "@l5sly/contracts";
+import type {
+  SummaryLanguage,
+  TimelineWindow,
+  WatchVerdict,
+} from "@l5sly/contracts";
 
 import type {
   GeneratedSummary,
+  GroundingInput,
+  InsightProvider,
   MediaInput,
+  PrecheckInput,
+  SectionSupport,
+  TimelineInput,
   SummaryGenerationInput,
   SummaryProvider,
   TranscriptionProvider,
   TranscriptionResult,
   VerdictInput,
   VerdictProvider,
+  VideoMetadata,
+  VideoMetadataSource,
 } from "./provider-contracts.js";
+import { buildTranscriptWindows } from "./transcript-segments.js";
+import { buildWatchVerdict } from "./watch-verdict.js";
 
 const sampleTranscript: TranscriptionResult = {
   text: [
@@ -231,6 +244,12 @@ export class MockVerdictProvider implements VerdictProvider {
   async decide(input: VerdictInput): Promise<WatchVerdict> {
     await simulateProviderDelay();
     const hasExpectation = Boolean(input.expectation?.trim());
+    const signals = {
+      answersQuestion: hasExpectation ? 0.7 : null,
+      informationDensity: 0.7,
+      padding: 0.3,
+      knowledgeGap: 0.2,
+    };
 
     if (input.language === "Arabic") {
       return {
@@ -239,6 +258,7 @@ export class MockVerdictProvider implements VerdictProvider {
         headline: "شاهد المقاطع المهمة",
         reason:
           "ابدأ بالمقاطع المقترحة لفهم طريقة تقييم الخيارات. هذا حكم تجريبي لعرض المنتج.",
+        signals,
       };
     }
 
@@ -249,6 +269,71 @@ export class MockVerdictProvider implements VerdictProvider {
       reason: hasExpectation
         ? "The recommended sections directly address your goal. The opening can be skipped."
         : "The middle of the video contains the strongest practical ideas. The opening repeats familiar context.",
+      signals,
+    };
+  }
+}
+
+// Deterministic relevance curve: weak opening, strongest middle, softer close.
+const MOCK_RELEVANCE_CURVE = [0.2, 0.55, 0.9, 0.85, 0.6, 0.35];
+
+export class MockInsightProvider implements InsightProvider {
+  async scoreTimeline(input: TimelineInput): Promise<TimelineWindow[]> {
+    await simulateProviderDelay();
+    const windows = buildTranscriptWindows(
+      input.segments,
+      input.durationSeconds,
+    );
+    return windows.map((window, index) => {
+      const curveIndex = Math.floor(
+        (index / windows.length) * MOCK_RELEVANCE_CURVE.length,
+      );
+      return {
+        startSeconds: window.startSeconds,
+        endSeconds: window.endSeconds,
+        relevance: window.text ? (MOCK_RELEVANCE_CURVE[curveIndex] ?? 0.5) : 0,
+      };
+    });
+  }
+
+  async checkGrounding(input: GroundingInput): Promise<SectionSupport[]> {
+    await simulateProviderDelay();
+    return input.sections.map(() => "supported");
+  }
+
+  async precheck(input: PrecheckInput): Promise<WatchVerdict> {
+    await simulateProviderDelay();
+    const hasExpectation = Boolean(input.expectation?.trim());
+    return buildWatchVerdict(
+      {
+        watchProbability: 0.55,
+        relevance: 0.6,
+        signals: {
+          answersQuestion: hasExpectation ? 0.5 : null,
+          informationDensity: 0.7,
+          padding: 0.7,
+          knowledgeGap: 0.2,
+        },
+      },
+      input.language,
+    );
+  }
+}
+
+export class MockVideoMetadataSource implements VideoMetadataSource {
+  async fetchMetadata(_url: string): Promise<VideoMetadata> {
+    await simulateProviderDelay();
+    return {
+      title: "How creative work survives the age of AI",
+      channel: "Sample channel",
+      durationSeconds: sampleTranscript.durationSeconds,
+      description:
+        "A talk about using AI for breadth while keeping human judgment for the final edit.",
+      chapters: [
+        { title: "Introduction", startSeconds: 0 },
+        { title: "Judgment is the bottleneck", startSeconds: 318 },
+        { title: "A practical workflow", startSeconds: 584 },
+      ],
     };
   }
 }

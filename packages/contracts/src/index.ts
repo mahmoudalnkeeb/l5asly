@@ -117,6 +117,8 @@ export const createUrlSummarySchema = summaryOptionsSchema
 export const summarySectionSchema = z.object({
   title: z.string().min(1),
   body: z.string().min(1),
+  // Set by the grounding check. Absent when the check was skipped or failed.
+  support: z.enum(["supported", "unsupported"]).optional(),
 });
 
 export const summaryNoteSchema = z.object({
@@ -138,11 +140,28 @@ export const recommendedMomentSchema = z.object({
   reason: z.string().min(1),
 });
 
+const probabilitySchema = z.number().min(0).max(1);
+
+export const verdictSignalsSchema = z.object({
+  // Null when the viewer did not ask a question for this video.
+  answersQuestion: probabilitySchema.nullable(),
+  informationDensity: probabilitySchema,
+  padding: probabilitySchema,
+  knowledgeGap: probabilitySchema,
+});
+
 export const watchVerdictSchema = z.object({
   recommendation: z.enum(["watch", "watch-key-moments", "skip"]),
-  confidence: z.number().min(0).max(1),
+  confidence: probabilitySchema,
   headline: z.string().min(1),
   reason: z.string().min(1),
+  signals: verdictSignalsSchema.optional(),
+});
+
+export const timelineWindowSchema = z.object({
+  startSeconds: z.number().nonnegative(),
+  endSeconds: z.number().nonnegative(),
+  relevance: probabilitySchema,
 });
 
 export const personalizedGuidanceSchema = z.object({
@@ -175,6 +194,7 @@ export const summaryResultSchema = z.object({
   durationSeconds: z.number().nonnegative(),
   sourceLanguage: z.string().min(1),
   personalizedGuidance: personalizedGuidanceSchema.optional(),
+  timeline: z.array(timelineWindowSchema).optional(),
 });
 
 export const summaryJobSchema = z.object({
@@ -215,6 +235,25 @@ export const summaryListItemSchema = summaryJobSchema
     durationSeconds: z.number().nonnegative().nullable(),
   });
 
+export const precheckRequestSchema = z
+  .object({
+    url: z.url(),
+    language: summaryLanguageSchema,
+    viewerProfile: viewerProfileSchema.optional(),
+    expectation: summaryOptionsSchema.shape.expectation,
+  })
+  .refine((input) => isYouTubeUrl(input.url), {
+    path: ["url"],
+    message: "Quick checks are available for YouTube links only.",
+  });
+
+export const precheckResultSchema = z.object({
+  title: z.string().min(1),
+  channel: z.string().nullable(),
+  durationSeconds: z.number().nonnegative().nullable(),
+  verdict: watchVerdictSchema,
+});
+
 export const apiErrorSchema = z.object({
   code: z.string(),
   message: z.string(),
@@ -233,6 +272,10 @@ export type SummaryNote = z.infer<typeof summaryNoteSchema>;
 export type TranscriptSegment = z.infer<typeof transcriptSegmentSchema>;
 export type RecommendedMoment = z.infer<typeof recommendedMomentSchema>;
 export type WatchVerdict = z.infer<typeof watchVerdictSchema>;
+export type VerdictSignals = z.infer<typeof verdictSignalsSchema>;
+export type TimelineWindow = z.infer<typeof timelineWindowSchema>;
+export type PrecheckRequest = z.infer<typeof precheckRequestSchema>;
+export type PrecheckResult = z.infer<typeof precheckResultSchema>;
 export type SummaryResult = z.infer<typeof summaryResultSchema>;
 export type SummaryJob = z.infer<typeof summaryJobSchema>;
 export type JobStep = z.infer<typeof jobStepSchema>;

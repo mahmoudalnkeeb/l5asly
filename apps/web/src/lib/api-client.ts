@@ -2,9 +2,12 @@ import { z } from "zod";
 
 import {
   apiErrorSchema,
+  precheckResultSchema,
   summaryJobSchema,
   summaryListItemSchema,
   type CreateUrlSummaryInput,
+  type PrecheckRequest,
+  type PrecheckResult,
   type SummaryJob,
   type SummaryListItem,
   type SummaryOptions,
@@ -12,6 +15,7 @@ import {
 
 const errorResponseSchema = z.object({ error: apiErrorSchema });
 const jobResponseSchema = z.object({ data: summaryJobSchema });
+const precheckResponseSchema = z.object({ data: precheckResultSchema });
 const summaryListResponseSchema = z.object({
   data: z.array(summaryListItemSchema),
 });
@@ -86,6 +90,18 @@ export async function createUrlSummary(
   });
 
   return parseResponse(jobResponseSchema, body).data;
+}
+
+export async function precheckVideo(
+  input: PrecheckRequest,
+): Promise<PrecheckResult> {
+  const body = await request("/api/summaries/precheck", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+  return parseResponse(precheckResponseSchema, body).data;
 }
 
 export async function createUploadSummary(input: {

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   summaryResultSchema,
+  timelineWindowSchema,
   transcriptSegmentSchema,
   watchVerdictSchema,
 } from "@l5sly/contracts";
@@ -36,6 +37,7 @@ export const summaryCheckpointSchema = z.object({
     .optional(),
   summary: generatedSummarySchema.optional(),
   verdict: watchVerdictSchema.optional(),
+  timeline: z.array(timelineWindowSchema).optional(),
 });
 
 export type SummaryCheckpoint = z.infer<typeof summaryCheckpointSchema>;

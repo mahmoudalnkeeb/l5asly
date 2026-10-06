@@ -30,6 +30,10 @@ import type {
 } from "@l5sly/contracts";
 import { useNotification } from "@/components/notifications";
 import { formatTimestamp } from "@/features/summaries/format";
+import {
+  RelevanceTimeline,
+  VerdictSignalChips,
+} from "@/features/summaries/verdict-insights";
 
 interface SummaryResultProps {
   result: SummaryResultData;
@@ -442,6 +446,16 @@ export function SummaryResult({
                 <Typography variant="h3" {...getContentProps(section.title)}>
                   {section.title}
                 </Typography>
+                {section.support === "unsupported" ? (
+                  <Chip
+                    size="small"
+                    color="warning"
+                    variant="outlined"
+                    label="Not found in transcript"
+                    title="An automatic check could not match this point to what the speaker said. Verify it before relying on it."
+                    sx={{ mt: 0.75 }}
+                  />
+                ) : null}
                 <Typography
                   color="text.secondary"
                   {...getContentProps(section.body)}
@@ -503,7 +517,16 @@ export function SummaryResult({
               >
                 {result.verdict.reason}
               </Typography>
+              {result.verdict.signals ? (
+                <VerdictSignalChips signals={result.verdict.signals} />
+              ) : null}
             </Paper>
+            {result.timeline?.length ? (
+              <RelevanceTimeline
+                timeline={result.timeline}
+                durationSeconds={result.durationSeconds}
+              />
+            ) : null}
             <Typography variant="h3" id="moments-title">
               Recommended moments
             </Typography>

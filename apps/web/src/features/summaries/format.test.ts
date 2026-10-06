@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatTimestamp } from "./format";
+import { calculateFocusSeconds, formatTimestamp } from "./format";
 
 describe("formatTimestamp", () => {
   it("formats minute-long timestamps", () => {
@@ -13,5 +13,25 @@ describe("formatTimestamp", () => {
 
   it("does not return negative time", () => {
     expect(formatTimestamp(-10)).toBe("0:00");
+  });
+});
+
+describe("calculateFocusSeconds", () => {
+  it("adds up only the parts relevant enough to watch", () => {
+    expect(
+      calculateFocusSeconds([
+        { startSeconds: 0, endSeconds: 60, relevance: 0.2 },
+        { startSeconds: 60, endSeconds: 180, relevance: 0.9 },
+        { startSeconds: 180, endSeconds: 240, relevance: 0.6 },
+      ]),
+    ).toBe(180);
+  });
+
+  it("returns zero when nothing stands out", () => {
+    expect(
+      calculateFocusSeconds([
+        { startSeconds: 0, endSeconds: 60, relevance: 0.1 },
+      ]),
+    ).toBe(0);
   });
 });

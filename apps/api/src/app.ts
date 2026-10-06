@@ -10,6 +10,7 @@ import { pinoHttp } from "pino-http";
 import type { AppConfig } from "./config.js";
 import { errorHandler, notFoundHandler } from "./middleware/error-handler.js";
 import { requestContext } from "./middleware/request-context.js";
+import { PrecheckService } from "./modules/summaries/precheck-service.js";
 import { SummaryJobRunner } from "./modules/summaries/summary-job-runner.js";
 import { createSummaryRouter } from "./modules/summaries/summary-router.js";
 import { SummaryService } from "./modules/summaries/summary-service.js";
@@ -19,6 +20,7 @@ export function createApp(options: {
   config: AppConfig;
   summaryService: SummaryService;
   jobRunner: SummaryJobRunner;
+  precheckService: PrecheckService;
   log: Logger;
 }): Express {
   const app = express();
@@ -44,6 +46,7 @@ export function createApp(options: {
     createSummaryRouter({
       summaryService: options.summaryService,
       jobRunner: options.jobRunner,
+      precheckService: options.precheckService,
       upload: createUploadMiddleware({
         uploadDirectory: options.config.uploadDirectory,
         maxUploadBytes: options.config.maxUploadBytes,

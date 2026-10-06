@@ -4,6 +4,7 @@ import type {
   SummaryLanguage,
   SummaryNote,
   SummarySection,
+  TimelineWindow,
   TranscriptSegment,
   WatchVerdict,
   ViewerProfile,
@@ -68,4 +69,45 @@ export interface SummaryProvider {
 
 export interface VerdictProvider {
   decide(input: VerdictInput): Promise<WatchVerdict>;
+}
+
+export interface TimelineInput {
+  segments: TranscriptSegment[];
+  durationSeconds: number;
+  expectation?: string;
+  viewerProfile?: ViewerProfile;
+}
+
+export type SectionSupport = NonNullable<SummarySection["support"]>;
+
+export interface GroundingInput {
+  transcript: string;
+  sections: SummarySection[];
+}
+
+export interface VideoMetadata {
+  title: string;
+  channel: string | null;
+  durationSeconds: number | null;
+  description: string;
+  chapters: Array<{ title: string; startSeconds: number }>;
+}
+
+export interface PrecheckInput {
+  metadata: VideoMetadata;
+  expectation?: string;
+  viewerProfile?: ViewerProfile;
+  language: SummaryLanguage;
+}
+
+// Optional enrichment on top of the core pipeline. Failures here never fail a job.
+export interface InsightProvider {
+  scoreTimeline(input: TimelineInput): Promise<TimelineWindow[]>;
+  // Returns null when the transcript is too long to check reliably.
+  checkGrounding(input: GroundingInput): Promise<SectionSupport[] | null>;
+  precheck(input: PrecheckInput): Promise<WatchVerdict>;
+}
+
+export interface VideoMetadataSource {
+  fetchMetadata(url: string): Promise<VideoMetadata>;
 }

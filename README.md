@@ -37,6 +37,17 @@ New briefs include a direct answer, personal relevance, preparation, and practic
 
 Summary generation follows a question-first analysis guide: understand the question, extract and merge relevant ideas, then reconstruct a natural personalized answer. It does not recap the entire video unless requested, invent user experience, or pad narrow answers to fill section quotas. Key points use `sections`, the personalized answer uses `viewerAnswer`, and optional verification notes use `notes` and grounded `recommendedMoments`. Missing information and unsupported claims remain explicit. The guide and depth limits live in `apps/api/src/modules/summaries/providers/summary-prompt.ts`.
 
+## Watch insights from Jev
+
+Jev answers several structured questions per video, not just the yes/no verdict:
+
+- **Verdict signals.** Whether the video answers your question, how dense it is, how much filler it has, and whether it assumes background your profile lacks. The verdict reason is written from these signals. When a question was asked and the video clearly does not answer it, the verdict is to skip, with a reason that says so.
+- **Relevance timeline.** The transcript is split into up to 12 timed parts, each scored for your question and goals in one request. The result page shows where the value is and the time worth watching. Parts without speech count as not relevant and are not sent to Jev.
+- **Grounding check.** After the summary is written, Jev checks each key point against the transcript. Points it cannot match are marked "Not found in transcript". The check is skipped for transcripts longer than Jev's input budget, so content it never saw is not flagged as unsupported.
+- **Quick check.** For YouTube links, **Quick check** reads only the title, description and chapters through `yt-dlp --dump-single-json` and returns a provisional verdict in seconds. No job is created, and nothing is downloaded or transcribed. `POST /api/summaries/precheck` takes `url`, `language`, and optional `expectation` and `viewerProfile`.
+
+The timeline and grounding check are optional extras: if either fails, the job still completes without it, and the failure is logged. Their results are checkpointed with the summary, so a summary retry does not repeat them unnecessarily. Results saved before these features existed still display normally.
+
 If an older Arabic job contains only English fragments, create it again with **Video language: Arabic** after rebuilding and restarting the server. Missed speech cannot be restored from the old transcript. Database schema upgrades run automatically on startup and preserve existing jobs.
 
 ## Quality checks
