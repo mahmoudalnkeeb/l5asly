@@ -21,6 +21,7 @@ import { Link } from "react-router-dom";
 
 import type { SummaryListItem } from "@l5sly/contracts";
 import { formatCreatedAt, formatTimestamp } from "@/features/summaries/format";
+import { verdictStyles } from "@/features/summaries/verdict-insights";
 import { getErrorMessage, listSummaries } from "@/lib/api-client";
 
 const statusLabels: Record<SummaryListItem["status"], string> = {
@@ -121,13 +122,30 @@ function SummaryRow({ summary }: { summary: SummaryListItem }) {
       sx={{ display: "flex", gap: 2, p: { xs: 2, sm: 3 } }}
     >
       <Box sx={{ minWidth: 0, flex: 1 }}>
-        <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
+        <Stack
+          direction="row"
+          sx={{
+            alignItems: "center",
+            flexWrap: "wrap",
+            columnGap: 1.5,
+            rowGap: 1,
+          }}
+        >
           <Chip
             label={statusLabels[summary.status]}
             size="small"
             variant="outlined"
             color={statusColor}
           />
+          {summary.verdict ? (
+            <Chip
+              size="small"
+              icon={verdictStyles[summary.verdict.recommendation].icon}
+              label={verdictStyles[summary.verdict.recommendation].label}
+              color={verdictStyles[summary.verdict.recommendation].color}
+              sx={{ "& .MuiChip-icon": { fontSize: 16 } }}
+            />
+          ) : null}
           <Typography
             component="time"
             variant="caption"

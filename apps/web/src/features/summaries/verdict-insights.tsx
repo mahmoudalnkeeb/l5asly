@@ -1,8 +1,28 @@
-import { Box, Chip, Stack, Tooltip, Typography } from "@mui/material";
+import {
+  Box,
+  ButtonBase,
+  Chip,
+  Paper,
+  Stack,
+  Tooltip,
+  Typography,
+} from "@mui/material";
 import { alpha } from "@mui/material/styles";
+import ArticleOutlined from "@mui/icons-material/ArticleOutlined";
+import FastForwardOutlined from "@mui/icons-material/FastForwardOutlined";
+import PlayCircleOutlined from "@mui/icons-material/PlayCircleOutlined";
+import type { ReactElement } from "react";
 
-import type { TimelineWindow, VerdictSignals } from "@l5sly/contracts";
-import { calculateFocusSeconds, formatTimestamp } from "./format";
+import type {
+  TimelineWindow,
+  VerdictSignals,
+  WatchVerdict,
+} from "@l5sly/contracts";
+import {
+  calculateFocusSeconds,
+  formatTimestamp,
+  getContentProps,
+} from "./format";
 
 const HIGH_SIGNAL = 0.65;
 const LOW_SIGNAL = 0.35;
@@ -76,12 +96,117 @@ export function VerdictSignalChips({ signals }: { signals: VerdictSignals }) {
   );
 }
 
+interface VerdictStyle {
+  label: string;
+  color: "success" | "primary" | "warning";
+  icon: ReactElement;
+}
+
+export const verdictStyles: Record<
+  WatchVerdict["recommendation"],
+  VerdictStyle
+> = {
+  watch: {
+    label: "Worth watching",
+    color: "success",
+    icon: <PlayCircleOutlined />,
+  },
+  "watch-key-moments": {
+    label: "Key moments only",
+    color: "primary",
+    icon: <FastForwardOutlined />,
+  },
+  skip: {
+    label: "Brief is enough",
+    color: "warning",
+    icon: <ArticleOutlined />,
+  },
+};
+
+// The verdict answers the app's core question, so it leads the result page.
+export function VerdictPanel({
+  verdict,
+  timeline,
+  durationSeconds,
+  onSelectTime,
+}: {
+  verdict: WatchVerdict;
+  timeline?: TimelineWindow[];
+  durationSeconds: number;
+  onSelectTime: (seconds: number) => void;
+}) {
+  const style = verdictStyles[verdict.recommendation];
+  const hasTimeline = Boolean(timeline?.length);
+
+  return (
+    <Paper
+      component="section"
+      aria-label="Watch verdict"
+      sx={(theme) => ({
+        p: { xs: 2.5, sm: 3 },
+        mb: 3,
+        borderRadius: 4,
+        bgcolor: alpha(theme.palette[style.color].main, 0.1),
+        display: "grid",
+        gridTemplateColumns: {
+          xs: "minmax(0, 1fr)",
+          md: hasTimeline ? "minmax(0, 1fr) minmax(0, 360px)" : "1fr",
+        },
+        gap: { xs: 3, md: 5 },
+        alignItems: "start",
+      })}
+    >
+      <Box sx={{ minWidth: 0 }}>
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ alignItems: "center", color: `${style.color}.main` }}
+        >
+          {style.icon}
+          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+            {style.label}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            · {Math.round(verdict.confidence * 100)}% confidence
+          </Typography>
+        </Stack>
+        <Typography
+          variant="h2"
+          {...getContentProps(verdict.headline)}
+          sx={{ mt: 1, fontSize: { xs: "1.25rem", sm: "1.5rem" } }}
+        >
+          {verdict.headline}
+        </Typography>
+        <Typography
+          color="text.secondary"
+          {...getContentProps(verdict.reason)}
+          sx={{ mt: 1 }}
+        >
+          {verdict.reason}
+        </Typography>
+        {verdict.signals ? (
+          <VerdictSignalChips signals={verdict.signals} />
+        ) : null}
+      </Box>
+      {timeline && hasTimeline ? (
+        <RelevanceTimeline
+          timeline={timeline}
+          durationSeconds={durationSeconds}
+          onSelectTime={onSelectTime}
+        />
+      ) : null}
+    </Paper>
+  );
+}
+
 export function RelevanceTimeline({
   timeline,
   durationSeconds,
+  onSelectTime,
 }: {
   timeline: TimelineWindow[];
   durationSeconds: number;
+  onSelectTime: (seconds: number) => void;
 }) {
   const focusSeconds = calculateFocusSeconds(timeline);
   const totalSeconds = Math.max(
@@ -90,7 +215,7 @@ export function RelevanceTimeline({
   );
 
   return (
-    <Box component="section" aria-labelledby="timeline-title" sx={{ mb: 3 }}>
+    <Box role="group" aria-labelledby="timeline-title" sx={{ minWidth: 0 }}>
       <Typography variant="h3" id="timeline-title">
         Where the value is
       </Typography>
@@ -114,39 +239,44 @@ export function RelevanceTimeline({
         role="list"
         aria-label="Relevance by part of the video"
         dir="ltr"
-        sx={{
-          display: "flex",
-          height: 20,
-          mt: 1.25,
-          borderRadius: 1,
-          overflow: "hidden",
-          gap: "2px",
-        }}
+        sx={{ display: "flex", height: 28, mt: 1.5, gap: "3px" }}
       >
         {timeline.map((window) => {
           const range = `${formatTimestamp(window.startSeconds)}–${formatTimestamp(window.endSeconds)}`;
           const percent = Math.round(window.relevance * 100);
           return (
-            <Tooltip
+            <Box
               key={window.startSeconds}
-              title={`${range} · ${percent}% relevant`}
+              role="listitem"
+              aria-label={`${range}, ${percent}% relevant`}
+              sx={{
+                flexGrow: Math.max(1, window.endSeconds - window.startSeconds),
+                flexBasis: 0,
+                display: "flex",
+              }}
             >
-              <Box
-                role="listitem"
-                aria-label={`${range}, ${percent}% relevant`}
-                sx={(theme) => ({
-                  flexGrow: Math.max(
-                    1,
-                    window.endSeconds - window.startSeconds,
-                  ),
-                  flexBasis: 0,
-                  bgcolor: alpha(
-                    theme.palette.primary.main,
-                    0.12 + 0.88 * window.relevance,
-                  ),
-                })}
-              />
-            </Tooltip>
+              <Tooltip title={`${range} · ${percent}% relevant`}>
+                <ButtonBase
+                  aria-label={`Jump to transcript at ${formatTimestamp(window.startSeconds)}`}
+                  onClick={() => onSelectTime(window.startSeconds)}
+                  sx={(theme) => ({
+                    flex: 1,
+                    borderRadius: "4px",
+                    bgcolor: alpha(
+                      theme.palette.primary.main,
+                      0.12 + 0.88 * window.relevance,
+                    ),
+                    transition: theme.transitions.create("transform"),
+                    "&:hover": { transform: "scaleY(1.15)" },
+                    "&.Mui-focusVisible": {
+                      outline: "2px solid",
+                      outlineColor: "primary.main",
+                      outlineOffset: 2,
+                    },
+                  })}
+                />
+              </Tooltip>
+            </Box>
           );
         })}
       </Box>
