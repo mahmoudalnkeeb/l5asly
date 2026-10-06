@@ -1,0 +1,16 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Only these dependencies may run install scripts (they download native binaries).
+allowBuilds:
+  ffmpeg-static: true
+  msgpackr-extract: true
+
+minimumReleaseAgeExclude:
+  - '@tursodatabase/database-common@0.8.2'
+  - '@tursodatabase/database-darwin-arm64@0.8.2'
+  - '@tursodatabase/database-linux-arm64-gnu@0.8.2'
+  - '@tursodatabase/database-linux-x64-gnu@0.8.2'
+  - '@tursodatabase/database-win32-x64-msvc@0.8.2'
+  - '@tursodatabase/database@0.8.2'
