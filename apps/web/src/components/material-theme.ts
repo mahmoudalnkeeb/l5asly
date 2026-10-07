@@ -8,6 +8,14 @@ const RADIUS = {
   large: 12, // cards and page surfaces
 } as const;
 
+// A soft lift for the one card that leads a page (the composer or the answer).
+// Other surfaces stay flat and outlined.
+export function getLeadCardShadow(mode: "light" | "dark"): string {
+  return mode === "dark"
+    ? "0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px rgb(0 0 0 / 0.25)"
+    : "0 1px 2px rgb(26 33 27 / 0.06), 0 8px 24px rgb(26 33 27 / 0.06)";
+}
+
 export function createMaterialTheme(mode: "light" | "dark") {
   const isDark = mode === "dark";
   const theme = createTheme({
