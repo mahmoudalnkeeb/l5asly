@@ -269,7 +269,7 @@ describe("summary context", () => {
     const body = fetchMock.mock.calls[0]?.[1]?.body;
     if (typeof body !== "string")
       throw new Error("Expected serialized model request.");
-    expect(body).toContain("Write the result in English");
+    expect(body).toContain("Output language: English.");
     expect(body).toContain(
       "use Egyptian Arabic when the output language is Arabic",
     );

@@ -50,6 +50,9 @@ export const summaryOutputSchema = z.strictObject({
     ),
   personalizedGuidance: personalizedGuidanceSchema
     .extend({
+      relevance: personalizedGuidanceSchema.shape.relevance.describe(
+        "One sentence explaining why this video matters for the viewer's question and goals; not a single word such as 'high'.",
+      ),
       prerequisites: z
         .array(personalizedGuidanceSchema.shape.prerequisites.element.strict())
         .max(6),

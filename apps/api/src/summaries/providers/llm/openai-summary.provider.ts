@@ -23,10 +23,16 @@ import type {
 import { formatViewerContext } from "../shared/viewer-context.js";
 import { summaryOutputSchema } from "./summary-output-schema.js";
 import {
+  getOutputLanguageInstruction,
   getSummaryTaskInstructions,
   SUMMARY_SYSTEM_PROMPT,
 } from "./summary-prompt.js";
-import { finalizeGeneratedSummary } from "./summary-quality.js";
+import {
+  finalizeGeneratedSummary,
+  isSummaryInLanguage,
+} from "./summary-quality.js";
+
+type SummaryOutput = z.infer<typeof summaryOutputSchema>;
 
 const SUMMARY_RESPONSE_FORMAT = zodResponseFormat(
   summaryOutputSchema,
@@ -62,8 +68,56 @@ export class OpenAiSummaryProvider implements SummaryProvider {
 
   async summarize(input: SummaryGenerationInput): Promise<GeneratedSummary> {
     const transcript = formatSummaryTranscript(input.transcript);
+    let output = await this.requestSummary(input, transcript, {
+      isLanguageCorrection: false,
+    });
+    // Models sometimes drift into the transcript's language; one corrected request usually fixes it.
+    if (!isSummaryInLanguage(output, input.language)) {
+      output = await this.requestSummary(input, transcript, {
+        isLanguageCorrection: true,
+      });
+    }
+    if (!isSummaryInLanguage(output, input.language)) {
+      throw new SummaryFormatError(
+        `The summary provider did not write the summary in ${input.language}. Retry summary generation.`,
+        { response: ["Wrong output language."] },
+      );
+    }
+
+    const summary = finalizeGeneratedSummary(
+      {
+        title: output.title,
+        overview: output.overview,
+        viewerAnswer: output.viewerAnswer,
+        caveats: output.caveats,
+        sections: output.sections,
+        notes: output.notes,
+        recommendedMoments: output.recommendedMoments,
+        personalizedGuidance: output.personalizedGuidance ?? undefined,
+      },
+      input,
+    );
+    if (transcript.sampled) {
+      const caveat =
+        input.language === "Arabic"
+          ? "تم تلخيص مقاطع موزعة على الفيديو لطوله؛ قد لا يغطي الملخص كل التفاصيل."
+          : "This long video was summarized from excerpts across its timeline; some details may be omitted.";
+      summary.caveats = [caveat, ...summary.caveats].slice(0, 4);
+    }
+    return summary;
+  }
+
+  private async requestSummary(
+    input: SummaryGenerationInput,
+    transcript: { text: string; sampled: boolean },
+    options: { isLanguageCorrection: boolean },
+  ): Promise<SummaryOutput> {
     const viewerContext = formatViewerContext(input);
     const depthInstructions = getSummaryTaskInstructions(input);
+    const languageInstruction = getOutputLanguageInstruction(input.language);
+    const closingInstruction = options.isLanguageCorrection
+      ? `A previous attempt was written in the wrong language. ${languageInstruction}`
+      : languageInstruction;
 
     let responseBody: unknown;
     try {
@@ -82,7 +136,7 @@ export class OpenAiSummaryProvider implements SummaryProvider {
             {
               role: "user",
               content: [
-                `Write the result in ${input.language}.`,
+                languageInstruction,
                 `Summary depth: ${input.depth}.`,
                 depthInstructions,
                 `Viewer context (saved profile and current question): ${viewerContext}`,
@@ -92,6 +146,7 @@ export class OpenAiSummaryProvider implements SummaryProvider {
                   : "Source coverage: the full available transcript; transcription errors may still exist.",
                 "Transcript (source data):",
                 transcript.text,
+                closingInstruction,
               ].join("\n\n"),
             },
           ],
@@ -166,28 +221,7 @@ export class OpenAiSummaryProvider implements SummaryProvider {
         fields,
       );
     }
-
-    const summary = finalizeGeneratedSummary(
-      {
-        title: parsed.data.title,
-        overview: parsed.data.overview,
-        viewerAnswer: parsed.data.viewerAnswer,
-        caveats: parsed.data.caveats,
-        sections: parsed.data.sections,
-        notes: parsed.data.notes,
-        recommendedMoments: parsed.data.recommendedMoments,
-        personalizedGuidance: parsed.data.personalizedGuidance ?? undefined,
-      },
-      input,
-    );
-    if (transcript.sampled) {
-      const caveat =
-        input.language === "Arabic"
-          ? "تم تلخيص مقاطع موزعة على الفيديو لطوله؛ قد لا يغطي الملخص كل التفاصيل."
-          : "This long video was summarized from excerpts across its timeline; some details may be omitted.";
-      summary.caveats = [caveat, ...summary.caveats].slice(0, 4);
-    }
-    return summary;
+    return parsed.data;
   }
 
   private getMaxTokens(depth: SummaryGenerationInput["depth"]): number {

@@ -21,6 +21,7 @@ import {
   type StoredSummaryJob,
 } from "../summary.repository.js";
 import type { UploadedMedia } from "../uploads/uploaded-media.pipe.js";
+import { SummaryPipeline } from "./summary-pipeline.service.js";
 
 @Injectable()
 export class SummariesService {
@@ -30,6 +31,7 @@ export class SummariesService {
     private readonly repository: SummaryRepository,
     private readonly mediaPreparer: MediaPreparer,
     private readonly queue: SummaryQueue,
+    private readonly pipeline: SummaryPipeline,
     @InjectPinoLogger(SummariesService.name)
     private readonly logger: PinoLogger,
   ) {}
@@ -89,7 +91,7 @@ export class SummariesService {
   }
 
   async retry(id: string, upload?: UploadedMedia): Promise<SummaryJob> {
-    await this.ensureNotProcessing(
+    this.ensureNotProcessing(
       id,
       "The previous attempt is finishing cleanup. Try again in a moment.",
     );
@@ -151,7 +153,7 @@ export class SummariesService {
   }
 
   async delete(id: string): Promise<void> {
-    await this.ensureNotProcessing(
+    this.ensureNotProcessing(
       id,
       "Wait for the current attempt to finish before deleting it.",
     );
@@ -267,9 +269,9 @@ export class SummariesService {
     );
   }
 
-  // The queue worker may still be cleaning up a job whose status already changed.
-  private async ensureNotProcessing(id: string, message: string): Promise<void> {
-    if (await this.queue.isProcessing(id)) {
+  // The pipeline may still be cleaning up a job whose status already changed.
+  private ensureNotProcessing(id: string, message: string): void {
+    if (this.pipeline.isRunning(id)) {
       throw new AppError({ message, statusCode: 409, code: "JOB_BUSY" });
     }
   }

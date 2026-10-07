@@ -28,7 +28,6 @@ import { SummaryRepository } from "../summary.repository.js";
 @Injectable()
 class InMemorySummaryQueue extends SummaryQueue {
   private readonly pendingIds: string[] = [];
-  private activeId: string | null = null;
   private isDraining = false;
 
   constructor(private readonly pipeline: SummaryPipeline) {
@@ -42,22 +41,16 @@ class InMemorySummaryQueue extends SummaryQueue {
     void this.drain();
   }
 
-  override async isProcessing(summaryId: string): Promise<boolean> {
-    return this.activeId === summaryId;
-  }
-
   private async drain(): Promise<void> {
     if (this.isDraining) return;
     this.isDraining = true;
     try {
       let summaryId = this.pendingIds.shift();
       while (summaryId) {
-        this.activeId = summaryId;
         await this.pipeline.process(summaryId);
         summaryId = this.pendingIds.shift();
       }
     } finally {
-      this.activeId = null;
       this.isDraining = false;
     }
   }
