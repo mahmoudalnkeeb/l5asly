@@ -107,6 +107,7 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   localStorage.removeItem("l5asly-viewer-profile");
 });
 
@@ -215,10 +216,15 @@ describe("Summary workflow", () => {
   });
 
   it("warns about corrupted profile storage without breaking the summary form", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     localStorage.setItem("l5asly-viewer-profile", "not-json");
     renderUi(<SummaryForm />);
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Your saved profile could not be read",
+    );
+    expect(warnSpy).toHaveBeenCalledWith(
+      "Could not read the saved viewer profile",
+      expect.any(SyntaxError),
     );
     expect(screen.getByRole("button", { name: "Summarize" })).toBeEnabled();
   });

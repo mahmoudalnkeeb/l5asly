@@ -1,7 +1,6 @@
 # L5asly
 
-[![Check](https://github.com/mahmoudalnkeeb/l5asly/actions/workflows/check.yml/badge.svg)](https://github.com/mahmoudalnkeeb/l5asly/actions/workflows/check.yml) [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/mahmoudalnakeeb)
-
+[![Check](https://github.com/mahmoudalnkeeb/l5asly/actions/workflows/check.yml/badge.svg)](https://github.com/mahmoudalnkeeb/l5asly/actions/workflows/check.yml)
 L5asly tells you whether a video is worth your time, and if it isn't, what it says.
 
 You give it a video upload or a public video URL, and optionally the question you want answered. It transcribes the video and writes a short brief that answers your question first. It also gives a verdict (watch it, watch only the key moments, or skip it), a timeline of which parts matter to you, and the full timestamped transcript. For YouTube links, a quick check gives a provisional verdict in a few seconds, from the title, description and chapters alone, before anything is downloaded.
@@ -96,6 +95,4 @@ The stack: React 19, Vite, TanStack Query, and Material UI on the web side; Nest
 
 ## Support
 
-L5asly is free and built in my spare time. If it saves you a few hours of video, you can buy me a coffee on Ko-fi:
-
-[![Support me on Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20L5asly-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/mahmoudalnakeeb)
+If L5asly saves you time, you can [buy me a coffee on Ko-fi](https://ko-fi.com/mahmoudalnakeeb).
