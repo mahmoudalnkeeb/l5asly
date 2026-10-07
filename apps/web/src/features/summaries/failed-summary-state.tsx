@@ -18,9 +18,7 @@ import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
 import Replay from "@mui/icons-material/Replay";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { m } from "motion/react";
 import type { JobStep, SummaryJob } from "@l5asly/contracts";
-import { enterAnimation } from "@/components/enter-animation";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { getLeadCardShadow } from "@/components/material-theme";
 import { findStepForProgress, JOB_STEPS } from "./job-steps";
@@ -86,12 +84,7 @@ export function FailedSummaryState({
   );
 
   return (
-    <Container
-      maxWidth="sm"
-      component={m.div}
-      {...enterAnimation}
-      sx={{ py: { xs: 4, sm: 6 } }}
-    >
+    <Container maxWidth="sm" sx={{ py: { xs: 4, sm: 6 } }}>
       <Button
         component={Link}
         to="/library"

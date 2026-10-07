@@ -792,7 +792,6 @@ describe("Summary result", () => {
       "aria-selected",
       "true",
     );
-    // The panel fades in, so it becomes visible a frame after it renders.
     await waitFor(() =>
       expect(screen.getByRole("heading", { name: "Key notes" })).toBeVisible(),
     );

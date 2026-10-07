@@ -19,9 +19,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import ArrowBack from "@mui/icons-material/ArrowBack";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { m } from "motion/react";
 import type { PrecheckResult, SummaryJob } from "@l5asly/contracts";
-import { enterAnimation } from "@/components/enter-animation";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { getLeadCardShadow } from "@/components/material-theme";
 import { formatTimestamp, getContentProps } from "./format";
@@ -50,12 +48,7 @@ export function ProcessingState({
   );
 
   return (
-    <Container
-      maxWidth="sm"
-      component={m.div}
-      {...enterAnimation}
-      sx={{ py: { xs: 4, sm: 6 } }}
-    >
+    <Container maxWidth="sm" sx={{ py: { xs: 4, sm: 6 } }}>
       <Button
         component={Link}
         to="/library"

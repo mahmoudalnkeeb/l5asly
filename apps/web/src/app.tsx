@@ -33,17 +33,17 @@ export function App() {
   return (
     <AppShell>
       <ErrorBoundary resetKey={location.pathname}>
-        <Suspense
-          fallback={
-            <Container maxWidth="lg" sx={{ py: 5 }}>
-              <Skeleton height={56} width="75%" />
-              <Skeleton height={28} width="50%" />
-              <Skeleton variant="rounded" height={360} sx={{ mt: 4 }} />
-            </Container>
-          }
-        >
-          {/* Keyed by path so the entrance replays on every navigation. */}
-          <m.div key={location.pathname} {...enterAnimation}>
+        {/* Wraps Suspense so the page fades in once, together with its skeleton. */}
+        <m.div key={location.pathname} {...enterAnimation}>
+          <Suspense
+            fallback={
+              <Container maxWidth="lg" sx={{ py: 5 }}>
+                <Skeleton height={56} width="75%" />
+                <Skeleton height={28} width="50%" />
+                <Skeleton variant="rounded" height={360} sx={{ mt: 4 }} />
+              </Container>
+            }
+          >
             <Routes>
               <Route path="/" element={<CreateSummaryPage />} />
               <Route path="/library" element={<LibraryPage />} />
@@ -51,8 +51,8 @@ export function App() {
               <Route path="/summaries/:summaryId" element={<SummaryPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
-          </m.div>
-        </Suspense>
+          </Suspense>
+        </m.div>
       </ErrorBoundary>
     </AppShell>
   );

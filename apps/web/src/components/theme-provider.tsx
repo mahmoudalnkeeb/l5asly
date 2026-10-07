@@ -102,8 +102,7 @@ export function ThemeProvider({
     <ThemeProviderContext.Provider value={value}>
       <MaterialThemeProvider theme={materialTheme}>
         <CssBaseline />
-        {/* LazyMotion loads only the animation features the app uses, which keeps
-            the main bundle small. */}
+        {/* domAnimation is enough for fades and keeps motion's bundle cost low. */}
         <LazyMotion features={domAnimation} strict>
           <MotionConfig reducedMotion="user">{children}</MotionConfig>
         </LazyMotion>

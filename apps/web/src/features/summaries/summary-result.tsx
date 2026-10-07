@@ -204,8 +204,6 @@ export function SummaryResult({
   return (
     <Container
       maxWidth="lg"
-      component={m.div}
-      {...enterAnimation}
       sx={{
         pt: 3,
         pb: 8,
