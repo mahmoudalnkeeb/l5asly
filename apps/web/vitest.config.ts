@@ -16,5 +16,8 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
+    // Full MUI workflows in jsdom take a few seconds each and exceed the 5 s default
+    // when the whole suite runs on a busy machine or CI runner.
+    testTimeout: 15_000,
   },
 });
