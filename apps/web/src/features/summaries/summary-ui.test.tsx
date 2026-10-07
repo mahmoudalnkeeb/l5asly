@@ -15,6 +15,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   SummaryJob,
   SummaryLanguage,
+  SummaryListItem,
   SummaryResult as SummaryResultData,
 } from "@l5asly/contracts";
 import { NotificationProvider } from "@/components/notifications";
@@ -106,10 +107,15 @@ function chooseSetting(name: RegExp, option: string): void {
 // Answers the create form's preview and quick check requests for a YouTube link.
 function mockLinkLookups({
   spokenLanguage,
+  recentSummaries = [],
 }: {
   spokenLanguage: SummaryLanguage | null;
+  recentSummaries?: SummaryListItem[];
 }) {
   const fetchMock = vi.fn<typeof fetch>((path) => {
+    if (path === "/api/summaries") {
+      return Promise.resolve(Response.json({ data: recentSummaries }));
+    }
     if (path === "/api/summaries/preview") {
       return Promise.resolve(
         Response.json({
@@ -367,7 +373,7 @@ describe("Summary workflow", () => {
       screen.getByRole("img", { name: "Verdict: Brief is enough" }),
     ).toBeInTheDocument();
     // Only the YouTube link is looked up, once the viewer stops typing.
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/summaries/preview",
       expect.objectContaining({ method: "POST" }),
@@ -413,6 +419,38 @@ describe("Summary workflow", () => {
     expect(JSON.parse(String(precheckCalls[0]?.[1]?.body))).toMatchObject({
       language: "Arabic",
     });
+  });
+
+  it("shows the provisional verdict and a brief estimate beside the preview", async () => {
+    const finishedBrief: SummaryListItem = {
+      id: queuedJob.id,
+      status: "completed",
+      source: queuedJob.source,
+      progress: 100,
+      stage: "Completed",
+      createdAt: "2026-10-05T00:00:00.000Z",
+      // Two minutes of processing for a ten-minute video.
+      updatedAt: "2026-10-05T00:02:00.000Z",
+      title: "Team rituals that work",
+      verdict: null,
+      durationSeconds: 600,
+    };
+    mockLinkLookups({
+      spokenLanguage: null,
+      recentSummaries: [finishedBrief, finishedBrief, finishedBrief],
+    });
+    renderUi(<SummaryForm />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Video" }), {
+      target: { value: "https://youtu.be/-xbzGngfQEw" },
+    });
+
+    const preview = await screen.findByRole("group", { name: "Video preview" });
+    // 128 seconds of video at a fifth of real time.
+    await waitFor(() =>
+      expect(preview).toHaveTextContent("Brief in under a minute"),
+    );
+    await waitFor(() => expect(preview).toHaveTextContent("Likely skip"));
   });
 
   it("keeps a spoken language the viewer chose over the preview's", async () => {

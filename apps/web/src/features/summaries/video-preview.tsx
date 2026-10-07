@@ -2,9 +2,14 @@ import { Box, Skeleton, Stack, Typography } from "@mui/material";
 import SmartDisplayOutlined from "@mui/icons-material/SmartDisplayOutlined";
 import { m } from "motion/react";
 
-import type { VideoPreview as VideoPreviewData } from "@l5asly/contracts";
+import type {
+  VideoPreview as VideoPreviewData,
+  WatchVerdict,
+} from "@l5asly/contracts";
 import { enterAnimation } from "@/components/enter-animation";
+import { formatBriefEstimate } from "./brief-estimate";
 import { formatTimestamp, getContentProps } from "./format";
+import { PrecheckVerdictChip } from "./precheck-result";
 
 const thumbnailSx = {
   width: 96,
@@ -14,9 +19,22 @@ const thumbnailSx = {
   bgcolor: "var(--muted)",
 } as const;
 
+interface VideoPreviewProps {
+  preview: VideoPreviewData;
+  // Null until the quick check returns.
+  recommendation: WatchVerdict["recommendation"] | null;
+  // Null when there are too few finished briefs to estimate from.
+  briefEstimateSeconds: number | null;
+}
+
 // The pasted link's title, channel and length, shown inside the video line so
-// the viewer can tell it's the right video before summarizing.
-export function VideoPreview({ preview }: { preview: VideoPreviewData }) {
+// the viewer can tell it's the right video before summarizing. The
+// provisional verdict and a time estimate join it as they become known.
+export function VideoPreview({
+  preview,
+  recommendation,
+  briefEstimateSeconds,
+}: VideoPreviewProps) {
   const details: string[] = [];
   if (preview.channel) {
     details.push(preview.channel);
@@ -56,7 +74,7 @@ export function VideoPreview({ preview }: { preview: VideoPreviewData }) {
           <SmartDisplayOutlined />
         </Box>
       )}
-      <Box sx={{ minWidth: 0 }}>
+      <Box sx={{ minWidth: 0, flex: 1 }}>
         <Typography
           variant="body2"
           sx={{
@@ -81,6 +99,21 @@ export function VideoPreview({ preview }: { preview: VideoPreviewData }) {
           </Typography>
         ) : null}
       </Box>
+      {recommendation || briefEstimateSeconds !== null ? (
+        <Stack
+          spacing={0.5}
+          sx={{ alignItems: "flex-end", flexShrink: 0, textAlign: "end" }}
+        >
+          {recommendation ? (
+            <PrecheckVerdictChip recommendation={recommendation} />
+          ) : null}
+          {briefEstimateSeconds !== null ? (
+            <Typography variant="caption" color="text.secondary">
+              {formatBriefEstimate(briefEstimateSeconds)}
+            </Typography>
+          ) : null}
+        </Stack>
+      ) : null}
     </Stack>
   );
 }
