@@ -1,7 +1,9 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
   type ReactNode,
 } from "react";
@@ -26,9 +28,11 @@ const ViewerProfileContext = createContext<
 function readProfile(): ProfileState {
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (!stored) return { profile: null, storageError: null };
-    const value: unknown = JSON.parse(stored);
-    const parsed = viewerProfileSchema.safeParse(value);
+    if (!stored) {
+      return { profile: null, storageError: null };
+    }
+    const storedJson: unknown = JSON.parse(stored);
+    const parsed = viewerProfileSchema.safeParse(storedJson);
     if (!parsed.success) {
       return {
         profile: null,
@@ -37,7 +41,8 @@ function readProfile(): ProfileState {
       };
     }
     return { profile: parsed.data, storageError: null };
-  } catch {
+  } catch (error) {
+    console.warn("Could not read the saved viewer profile", error);
     return {
       profile: null,
       storageError:
@@ -51,28 +56,39 @@ export function ViewerProfileProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     function syncProfile(event: StorageEvent): void {
-      if (event.key === STORAGE_KEY || event.key === null)
+      // A null key means another tab cleared all storage.
+      if (event.key === STORAGE_KEY || event.key === null) {
         setState(readProfile());
+      }
     }
     window.addEventListener("storage", syncProfile);
     return () => window.removeEventListener("storage", syncProfile);
   }, []);
 
-  function saveProfile(profile: ViewerProfile): void {
+  const saveProfile = useCallback((profile: ViewerProfile): void => {
     const validated = viewerProfileSchema.parse(profile);
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(validated));
     setState({ profile: validated, storageError: null });
-  }
+  }, []);
 
-  function clearProfile(): void {
+  const clearProfile = useCallback((): void => {
     window.localStorage.removeItem(STORAGE_KEY);
     setState({ profile: null, storageError: null });
-  }
+  }, []);
+
+  // Stable value so consumers only re-render when the profile itself changes.
+  const value = useMemo<ViewerProfileContextValue>(
+    () => ({
+      profile: state.profile,
+      storageError: state.storageError,
+      saveProfile,
+      clearProfile,
+    }),
+    [state, saveProfile, clearProfile],
+  );
 
   return (
-    <ViewerProfileContext.Provider
-      value={{ ...state, saveProfile, clearProfile }}
-    >
+    <ViewerProfileContext.Provider value={value}>
       {children}
     </ViewerProfileContext.Provider>
   );
@@ -80,9 +96,10 @@ export function ViewerProfileProvider({ children }: { children: ReactNode }) {
 
 export function useViewerProfile(): ViewerProfileContextValue {
   const context = useContext(ViewerProfileContext);
-  if (!context)
+  if (!context) {
     throw new Error(
       "useViewerProfile must be used inside ViewerProfileProvider.",
     );
+  }
   return context;
 }

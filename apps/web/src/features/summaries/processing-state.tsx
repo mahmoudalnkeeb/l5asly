@@ -5,11 +5,6 @@ import {
   CircularProgress,
   Alert,
   useMediaQuery,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
   LinearProgress,
   Paper,
   Skeleton,
@@ -22,7 +17,9 @@ import {
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { SummaryJob } from "@l5sly/contracts";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { formatTimestamp } from "./format";
+import { JOB_STEPS } from "./job-steps";
 
 interface ProcessingStateProps {
   job: SummaryJob;
@@ -31,12 +28,6 @@ interface ProcessingStateProps {
   hasConnectionError?: boolean;
 }
 
-const processingSteps = [
-  { label: "Prepare media", threshold: 34 },
-  { label: "Transcribe", threshold: 68 },
-  { label: "Summarize", threshold: 100 },
-];
-
 export function ProcessingState({
   job,
   isCancelling,
@@ -44,22 +35,9 @@ export function ProcessingState({
   hasConnectionError = false,
 }: ProcessingStateProps) {
   const [isConfirmingCancel, setIsConfirmingCancel] = useState(false);
-  const [now, setNow] = useState(Date.now());
   const reduceMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
-  const elapsed = Math.max(
-    0,
-    Math.floor((now - Date.parse(job.createdAt)) / 1000),
-  );
-  const stepElapsed = Math.max(
-    0,
-    Math.floor((now - Date.parse(job.stageStartedAt ?? job.updatedAt)) / 1000),
-  );
-  const activeStep = processingSteps.findIndex(
-    (step) => job.progress < step.threshold,
+  const activeStep = JOB_STEPS.findIndex(
+    (step) => job.progress < step.endsAtProgress,
   );
 
   return (
@@ -98,8 +76,8 @@ export function ProcessingState({
           >
             <Typography variant="body2">{job.stage}</Typography>
             <Typography variant="body2" sx={{ fontFamily: "var(--font-mono)" }}>
-              Step {Math.min(activeStep + 1, processingSteps.length)} /{" "}
-              {processingSteps.length}
+              Step {Math.min(activeStep + 1, JOB_STEPS.length)} /{" "}
+              {JOB_STEPS.length}
             </Typography>
           </Stack>
           <LinearProgress
@@ -110,12 +88,15 @@ export function ProcessingState({
           />
         </Box>
         <Stepper
-          activeStep={activeStep === -1 ? processingSteps.length : activeStep}
+          activeStep={activeStep === -1 ? JOB_STEPS.length : activeStep}
           alternativeLabel
           sx={{ my: 4 }}
         >
-          {processingSteps.map((step) => (
-            <Step key={step.label} completed={job.progress >= step.threshold}>
+          {JOB_STEPS.map((step) => (
+            <Step
+              key={step.step}
+              completed={job.progress >= step.endsAtProgress}
+            >
               <StepLabel>{step.label}</StepLabel>
             </Step>
           ))}
@@ -126,16 +107,7 @@ export function ProcessingState({
               ? "Your job is queued. It will start when the current job finishes."
               : "Progress updates when a step finishes. A long video or a detailed answer can take several minutes."}
           </Typography>
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            sx={{ fontFamily: "var(--font-mono)" }}
-          >
-            Attempt {job.attempt ?? 1} ·{" "}
-            {job.attempt && job.attempt > 1 ? "Job age" : "Elapsed"}{" "}
-            {formatTimestamp(elapsed)} · Current step{" "}
-            {formatTimestamp(stepElapsed)}
-          </Typography>
+          <JobTimers job={job} />
         </Stack>
         {hasConnectionError ? (
           <Alert severity="warning" sx={{ mb: 2 }}>
@@ -159,37 +131,47 @@ export function ProcessingState({
           </Button>
         </Stack>
       </Paper>
-      <Dialog
+      <ConfirmDialog
         open={isConfirmingCancel}
-        onClose={() => {
-          if (!isCancelling) setIsConfirmingCancel(false);
-        }}
-        aria-labelledby="cancel-dialog-title"
-      >
-        <DialogTitle id="cancel-dialog-title">Cancel this job?</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            The current result will be discarded.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => setIsConfirmingCancel(false)}
-            disabled={isCancelling}
-          >
-            Keep processing
-          </Button>
-          <Button
-            color="error"
-            variant="contained"
-            onClick={onCancel}
-            disabled={isCancelling}
-          >
-            {isCancelling ? "Cancelling…" : "Cancel job"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        title="Cancel this job?"
+        description="The current result will be discarded."
+        confirmLabel="Cancel job"
+        pendingLabel="Cancelling…"
+        cancelLabel="Keep processing"
+        isPending={isCancelling}
+        onConfirm={onCancel}
+        onClose={() => setIsConfirmingCancel(false)}
+      />
     </Container>
+  );
+}
+
+// Ticks every second on its own so the rest of the card does not re-render.
+function JobTimers({ job }: { job: SummaryJob }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const elapsed = Math.max(
+    0,
+    Math.floor((now - Date.parse(job.createdAt)) / 1000),
+  );
+  const stepElapsed = Math.max(
+    0,
+    Math.floor((now - Date.parse(job.stageStartedAt ?? job.updatedAt)) / 1000),
+  );
+  const isRetry = job.attempt !== undefined && job.attempt > 1;
+
+  return (
+    <Typography
+      variant="caption"
+      color="text.secondary"
+      sx={{ fontFamily: "var(--font-mono)" }}
+    >
+      Attempt {job.attempt ?? 1} · {isRetry ? "Job age" : "Elapsed"}{" "}
+      {formatTimestamp(elapsed)} · Current step {formatTimestamp(stepElapsed)}
+    </Typography>
   );
 }
 

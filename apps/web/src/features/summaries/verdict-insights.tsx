@@ -11,7 +11,7 @@ import { alpha } from "@mui/material/styles";
 import ArticleOutlined from "@mui/icons-material/ArticleOutlined";
 import FastForwardOutlined from "@mui/icons-material/FastForwardOutlined";
 import PlayCircleOutlined from "@mui/icons-material/PlayCircleOutlined";
-import type { ReactElement } from "react";
+import { useId, type ReactElement } from "react";
 
 import type {
   TimelineWindow,
@@ -123,20 +123,23 @@ export const verdictStyles: Record<
   },
 };
 
+interface VerdictPanelProps {
+  verdict: WatchVerdict;
+  // Results created before the timeline feature have none.
+  timeline?: TimelineWindow[];
+  durationSeconds: number;
+  onSelectTime: (seconds: number) => void;
+}
+
 // The verdict answers the app's core question, so it leads the result page.
 export function VerdictPanel({
   verdict,
   timeline,
   durationSeconds,
   onSelectTime,
-}: {
-  verdict: WatchVerdict;
-  timeline?: TimelineWindow[];
-  durationSeconds: number;
-  onSelectTime: (seconds: number) => void;
-}) {
-  const style = verdictStyles[verdict.recommendation];
-  const hasTimeline = Boolean(timeline?.length);
+}: VerdictPanelProps) {
+  const verdictStyle = verdictStyles[verdict.recommendation];
+  const hasTimeline = timeline !== undefined && timeline.length > 0;
 
   return (
     <Paper
@@ -145,7 +148,7 @@ export function VerdictPanel({
       sx={(theme) => ({
         p: { xs: 2.5, sm: 3 },
         mb: 3,
-        bgcolor: alpha(theme.palette[style.color].main, 0.1),
+        bgcolor: alpha(theme.palette[verdictStyle.color].main, 0.1),
         display: "grid",
         gridTemplateColumns: {
           xs: "minmax(0, 1fr)",
@@ -159,11 +162,11 @@ export function VerdictPanel({
         <Stack
           direction="row"
           spacing={1}
-          sx={{ alignItems: "center", color: `${style.color}.main` }}
+          sx={{ alignItems: "center", color: `${verdictStyle.color}.main` }}
         >
-          {style.icon}
+          {verdictStyle.icon}
           <Typography variant="body2" sx={{ fontWeight: 700 }}>
-            {style.label}
+            {verdictStyle.label}
           </Typography>
           <Typography variant="body2" color="text.secondary">
             · {Math.round(verdict.confidence * 100)}% confidence
@@ -187,7 +190,7 @@ export function VerdictPanel({
           <VerdictSignalChips signals={verdict.signals} />
         ) : null}
       </Box>
-      {timeline && hasTimeline ? (
+      {hasTimeline ? (
         <RelevanceTimeline
           timeline={timeline}
           durationSeconds={durationSeconds}
@@ -198,15 +201,18 @@ export function VerdictPanel({
   );
 }
 
-export function RelevanceTimeline({
-  timeline,
-  durationSeconds,
-  onSelectTime,
-}: {
+interface RelevanceTimelineProps {
   timeline: TimelineWindow[];
   durationSeconds: number;
   onSelectTime: (seconds: number) => void;
-}) {
+}
+
+function RelevanceTimeline({
+  timeline,
+  durationSeconds,
+  onSelectTime,
+}: RelevanceTimelineProps) {
+  const titleId = useId();
   const focusSeconds = calculateFocusSeconds(timeline);
   const totalSeconds = Math.max(
     durationSeconds,
@@ -214,8 +220,8 @@ export function RelevanceTimeline({
   );
 
   return (
-    <Box role="group" aria-labelledby="timeline-title" sx={{ minWidth: 0 }}>
-      <Typography variant="h3" id="timeline-title">
+    <Box role="group" aria-labelledby={titleId} sx={{ minWidth: 0 }}>
+      <Typography variant="h3" id={titleId}>
         Where the value is
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>

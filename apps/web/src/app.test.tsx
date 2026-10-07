@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./app";
+import { NotificationProvider } from "./components/notifications";
 import { ThemeProvider } from "./components/theme-provider";
 import { ViewerProfileProvider } from "./features/profile/viewer-profile";
 
@@ -27,11 +28,13 @@ describe("App", () => {
     render(
       <ThemeProvider defaultTheme="light">
         <QueryClientProvider client={queryClient}>
-          <MemoryRouter initialEntries={["/"]}>
-            <ViewerProfileProvider>
-              <App />
-            </ViewerProfileProvider>
-          </MemoryRouter>
+          <NotificationProvider>
+            <MemoryRouter initialEntries={["/"]}>
+              <ViewerProfileProvider>
+                <App />
+              </ViewerProfileProvider>
+            </MemoryRouter>
+          </NotificationProvider>
         </QueryClientProvider>
       </ThemeProvider>,
     );
@@ -43,7 +46,7 @@ describe("App", () => {
       screen.getByRole("button", { name: "Create summary" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Upload video" }),
+      screen.getByRole("button", { name: "Paste a link" }),
     ).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByRole("tab", { name: "Library" }));
     expect(

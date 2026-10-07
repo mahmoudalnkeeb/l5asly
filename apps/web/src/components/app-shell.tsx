@@ -14,22 +14,47 @@ import {
 import DarkModeOutlined from "@mui/icons-material/DarkModeOutlined";
 import LightModeOutlined from "@mui/icons-material/LightModeOutlined";
 import SettingsBrightnessOutlined from "@mui/icons-material/SettingsBrightnessOutlined";
+import type { SvgIconComponent } from "@mui/icons-material";
 import { useState, type ReactNode } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import { LogoMark } from "@/components/logo";
 import { useTheme, type Theme } from "@/components/theme-provider";
 
+const NAV_PAGES = [
+  { path: "/", label: "Summarize" },
+  { path: "/library", label: "Library" },
+  { path: "/profile", label: "Profile" },
+] as const;
+
+type NavPath = (typeof NAV_PAGES)[number]["path"];
+
+const THEME_OPTIONS: Record<Theme, { label: string; Icon: SvgIconComponent }> =
+  {
+    light: { label: "Light", Icon: LightModeOutlined },
+    dark: { label: "Dark", Icon: DarkModeOutlined },
+    system: { label: "System", Icon: SettingsBrightnessOutlined },
+  };
+
+const THEME_MENU_ORDER: Theme[] = ["light", "dark", "system"];
+
+// Summary pages are reached from the library, so they highlight Library.
+function findActivePage(pathname: string): NavPath {
+  if (pathname === "/" || pathname === "/profile") {
+    return pathname;
+  }
+  return "/library";
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const { theme, setTheme } = useTheme();
   const location = useLocation();
-  const navigate = useNavigate();
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
-  let activePage = "/library";
-  if (location.pathname === "/") activePage = "/";
-  if (location.pathname === "/profile") activePage = "/profile";
+  const isMenuOpen = menuAnchor !== null;
+  const activePage = findActivePage(location.pathname);
+  const CurrentThemeIcon = THEME_OPTIONS[theme].Icon;
 
-  function selectTheme(nextTheme: Theme) {
+  function selectTheme(nextTheme: Theme): void {
     setTheme(nextTheme);
     setMenuAnchor(null);
   }
@@ -85,9 +110,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                 L5asly
               </Typography>
             </Box>
+            {/* Each tab is a real link, so middle-click and "open in new tab" work. */}
             <Tabs
               value={activePage}
-              onChange={(_, route: string) => navigate(route)}
               aria-label="Primary navigation"
               sx={{
                 order: { xs: 3, sm: 0 },
@@ -95,53 +120,47 @@ export function AppShell({ children }: { children: ReactNode }) {
                 flexGrow: { xs: 0, sm: 1 },
               }}
             >
-              <Tab value="/" label="Summarize" />
-              <Tab value="/library" label="Library" />
-              <Tab value="/profile" label="Profile" />
+              {NAV_PAGES.map((page) => (
+                <Tab
+                  key={page.path}
+                  value={page.path}
+                  label={page.label}
+                  component={Link}
+                  to={page.path}
+                />
+              ))}
             </Tabs>
             <IconButton
               aria-label="Choose color theme"
-              aria-controls={menuAnchor ? "theme-menu" : undefined}
+              aria-controls={isMenuOpen ? "theme-menu" : undefined}
               aria-haspopup="menu"
-              aria-expanded={Boolean(menuAnchor)}
+              aria-expanded={isMenuOpen}
               onClick={(event) => setMenuAnchor(event.currentTarget)}
               sx={{ ml: "auto" }}
             >
-              {theme === "dark" ? <DarkModeOutlined /> : <LightModeOutlined />}
+              <CurrentThemeIcon />
             </IconButton>
             <Menu
               id="theme-menu"
               anchorEl={menuAnchor}
-              open={Boolean(menuAnchor)}
+              open={isMenuOpen}
               onClose={() => setMenuAnchor(null)}
             >
-              <MenuItem
-                selected={theme === "light"}
-                onClick={() => selectTheme("light")}
-              >
-                <ListItemIcon>
-                  <LightModeOutlined fontSize="small" />
-                </ListItemIcon>
-                Light
-              </MenuItem>
-              <MenuItem
-                selected={theme === "dark"}
-                onClick={() => selectTheme("dark")}
-              >
-                <ListItemIcon>
-                  <DarkModeOutlined fontSize="small" />
-                </ListItemIcon>
-                Dark
-              </MenuItem>
-              <MenuItem
-                selected={theme === "system"}
-                onClick={() => selectTheme("system")}
-              >
-                <ListItemIcon>
-                  <SettingsBrightnessOutlined fontSize="small" />
-                </ListItemIcon>
-                System
-              </MenuItem>
+              {THEME_MENU_ORDER.map((menuTheme) => {
+                const { label, Icon } = THEME_OPTIONS[menuTheme];
+                return (
+                  <MenuItem
+                    key={menuTheme}
+                    selected={theme === menuTheme}
+                    onClick={() => selectTheme(menuTheme)}
+                  >
+                    <ListItemIcon>
+                      <Icon fontSize="small" />
+                    </ListItemIcon>
+                    {label}
+                  </MenuItem>
+                );
+              })}
             </Menu>
           </Toolbar>
         </Container>

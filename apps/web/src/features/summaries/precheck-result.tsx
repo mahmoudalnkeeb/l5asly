@@ -14,7 +14,10 @@ const recommendationLabels: Record<
 };
 
 export function PrecheckResult({ result }: { result: PrecheckResultData }) {
-  const details = [result.channel];
+  const details: string[] = [];
+  if (result.channel) {
+    details.push(result.channel);
+  }
   if (result.durationSeconds !== null) {
     details.push(formatTimestamp(result.durationSeconds));
   }
@@ -32,7 +35,7 @@ export function PrecheckResult({ result }: { result: PrecheckResultData }) {
         {result.title}
       </Typography>
       <Typography variant="caption" color="text.secondary" dir="auto">
-        {details.filter(Boolean).join(" · ")}
+        {details.join(" · ")}
       </Typography>
       <Typography variant="body2" sx={{ mt: 1.5 }} dir="auto">
         <strong>{result.verdict.headline}.</strong> {result.verdict.reason}

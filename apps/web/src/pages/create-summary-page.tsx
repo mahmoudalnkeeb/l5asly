@@ -15,8 +15,8 @@ export function CreateSummaryPage() {
         Summarize a video
       </Typography>
       <Typography color="text.secondary" sx={{ mt: 1, mb: 3 }}>
-        Upload a file or paste a link to get a summary, watch verdict, and
-        transcript.
+        Paste a video link, or upload a file, to get a summary, watch verdict,
+        and transcript.
       </Typography>
       <SummaryForm />
     </Container>

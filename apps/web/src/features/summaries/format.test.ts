@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { calculateFocusSeconds, formatTimestamp } from "./format";
+import {
+  calculateFocusSeconds,
+  formatLanguageLabel,
+  formatTimestamp,
+} from "./format";
 
 describe("formatTimestamp", () => {
   it("formats minute-long timestamps", () => {
@@ -33,5 +37,23 @@ describe("calculateFocusSeconds", () => {
         { startSeconds: 0, endSeconds: 60, relevance: 0.1 },
       ]),
     ).toBe(0);
+  });
+});
+
+describe("formatLanguageLabel", () => {
+  it("names language codes, including regional ones", () => {
+    expect(formatLanguageLabel("en", "Arabic")).toBe("English");
+    expect(formatLanguageLabel("ar-EG", "English")).toBe("Arabic");
+    expect(formatLanguageLabel("fr", "English")).toBe("French");
+  });
+
+  it("keeps full language names readable", () => {
+    expect(formatLanguageLabel("arabic", "English")).toBe("Arabic");
+    expect(formatLanguageLabel("french", "English")).toBe("French");
+  });
+
+  it("falls back to the requested language when the source is unknown", () => {
+    expect(formatLanguageLabel("unknown", "Arabic")).toBe("Arabic");
+    expect(formatLanguageLabel("  ", "English")).toBe("English");
   });
 });

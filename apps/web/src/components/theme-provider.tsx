@@ -11,6 +11,7 @@ import { ThemeProvider as MaterialThemeProvider } from "@mui/material/styles";
 import { createMaterialTheme } from "@/components/material-theme";
 
 const THEMES = ["dark", "light", "system"] as const;
+const LEGACY_STORAGE_KEY = "l5sly-theme";
 
 export type Theme = (typeof THEMES)[number];
 
@@ -33,12 +34,26 @@ function isTheme(value: string | null): value is Theme {
   return value !== null && THEMES.some((theme) => theme === value);
 }
 
-function resolveTheme(theme: Theme, prefersDark: boolean): "dark" | "light" {
-  if (theme === "system") {
-    return prefersDark ? "dark" : "light";
+// Storage can be blocked (private browsing, site settings). The theme still
+// works for the session; it just is not remembered.
+function readStoredTheme(storageKey: string): string | null {
+  try {
+    return (
+      window.localStorage.getItem(storageKey) ??
+      window.localStorage.getItem(LEGACY_STORAGE_KEY)
+    );
+  } catch (error) {
+    console.warn("Could not read the saved theme", error);
+    return null;
   }
+}
 
-  return theme;
+function storeTheme(storageKey: string, theme: Theme): void {
+  try {
+    window.localStorage.setItem(storageKey, theme);
+  } catch (error) {
+    console.warn("Could not save the theme", error);
+  }
 }
 
 export function ThemeProvider({
@@ -47,43 +62,35 @@ export function ThemeProvider({
   storageKey = "l5asly-theme",
 }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<Theme>(() => {
-    const storedTheme =
-      window.localStorage.getItem(storageKey) ??
-      window.localStorage.getItem("l5sly-theme");
+    const storedTheme = readStoredTheme(storageKey);
     return isTheme(storedTheme) ? storedTheme : defaultTheme;
   });
-  const prefersDark = useMediaQuery("(prefers-color-scheme: dark)");
+  // noSsr reads the media query on the first render, so dark-mode users do not
+  // see a light frame before the real preference is known.
+  const prefersDark = useMediaQuery("(prefers-color-scheme: dark)", {
+    noSsr: true,
+  });
+  let resolvedTheme: "dark" | "light" = prefersDark ? "dark" : "light";
+  if (theme !== "system") {
+    resolvedTheme = theme;
+  }
   const materialTheme = useMemo(
-    () => createMaterialTheme(resolveTheme(theme, prefersDark)),
-    [theme, prefersDark],
+    () => createMaterialTheme(resolvedTheme),
+    [resolvedTheme],
   );
 
   useEffect(() => {
     const root = window.document.documentElement;
-    const systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
-
-    const applyTheme = () => {
-      const resolvedTheme = resolveTheme(theme, systemTheme.matches);
-      root.classList.remove("light", "dark");
-      root.classList.add(resolvedTheme);
-      root.style.colorScheme = resolvedTheme;
-    };
-
-    applyTheme();
-
-    if (theme !== "system") {
-      return;
-    }
-
-    systemTheme.addEventListener("change", applyTheme);
-    return () => systemTheme.removeEventListener("change", applyTheme);
-  }, [theme]);
+    root.classList.remove("light", "dark");
+    root.classList.add(resolvedTheme);
+    root.style.colorScheme = resolvedTheme;
+  }, [resolvedTheme]);
 
   const value = useMemo<ThemeProviderValue>(
     () => ({
       theme,
       setTheme: (nextTheme) => {
-        window.localStorage.setItem(storageKey, nextTheme);
+        storeTheme(storageKey, nextTheme);
         setThemeState(nextTheme);
       },
     }),

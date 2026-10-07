@@ -13,6 +13,8 @@ import Replay from "@mui/icons-material/Replay";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import type { JobStep, SummaryJob } from "@l5sly/contracts";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { findStepForProgress } from "./job-steps";
 
 const retryLabels: Record<JobStep, string> = {
   media: "Retry processing",
@@ -25,29 +27,27 @@ const stepLabels: Record<JobStep, string> = {
   summary: "Summary generation",
 };
 
+interface FailedSummaryStateProps {
+  job: SummaryJob;
+  isRetrying: boolean;
+  isDeleting: boolean;
+  // The file is only passed when the saved media expired and must be re-uploaded.
+  onRetry: (file?: File) => void;
+  onDelete: () => void;
+}
+
 export function FailedSummaryState({
   job,
   isRetrying,
   isDeleting,
   onRetry,
   onDelete,
-}: {
-  job: SummaryJob;
-  isRetrying: boolean;
-  isDeleting: boolean;
-  onRetry: (file?: File) => void;
-  onDelete: () => void;
-}) {
-  const [file, setFile] = useState<File>();
+}: FailedSummaryStateProps) {
+  const [replacementFile, setReplacementFile] = useState<File>();
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const isBusy = isRetrying || isDeleting;
   const requiresUpload = job.retryInfo?.requiresUpload ?? false;
-  const failedStep =
-    job.failedStep ??
-    (job.progress >= 68
-      ? "summary"
-      : job.progress >= 34
-        ? "transcription"
-        : "media");
+  const failedStep = job.failedStep ?? findStepForProgress(job.progress);
   const retryLabel = retryLabels[job.retryInfo?.fromStep ?? "media"];
 
   return (
@@ -91,16 +91,16 @@ export function FailedSummaryState({
               type="file"
               accept="video/*,audio/*"
               aria-label="Select media to retry"
-              onChange={(event) => setFile(event.target.files?.[0])}
+              onChange={(event) => setReplacementFile(event.target.files?.[0])}
               disabled={isBusy}
             />
           </Button>
-          {file ? (
+          {replacementFile ? (
             <Typography
               variant="body2"
               sx={{ mt: 1, overflowWrap: "anywhere" }}
             >
-              {file.name}
+              {replacementFile.name}
             </Typography>
           ) : null}
         </Box>
@@ -119,8 +119,8 @@ export function FailedSummaryState({
               <Replay />
             )
           }
-          onClick={() => onRetry(file)}
-          disabled={isBusy || (requiresUpload && !file)}
+          onClick={() => onRetry(replacementFile)}
+          disabled={isBusy || (requiresUpload && !replacementFile)}
         >
           {isRetrying ? "Retrying…" : retryLabel}
         </Button>
@@ -133,7 +133,7 @@ export function FailedSummaryState({
               <DeleteOutlined />
             )
           }
-          onClick={onDelete}
+          onClick={() => setIsConfirmingDelete(true)}
           disabled={isBusy}
         >
           {isDeleting ? "Deleting…" : "Delete job"}
@@ -150,6 +150,17 @@ export function FailedSummaryState({
         Retry uses this job’s original question and profile. Delete removes the
         job, checkpoints, and retained media.
       </Typography>
+      <ConfirmDialog
+        open={isConfirmingDelete}
+        title="Delete this job?"
+        description="The job, its saved checkpoints, and any retained media are removed permanently. This cannot be undone."
+        confirmLabel="Delete permanently"
+        pendingLabel="Deleting…"
+        cancelLabel="Keep job"
+        isPending={isDeleting}
+        onConfirm={onDelete}
+        onClose={() => setIsConfirmingDelete(false)}
+      />
     </Container>
   );
 }
