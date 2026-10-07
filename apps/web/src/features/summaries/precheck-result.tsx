@@ -4,7 +4,7 @@ import { m } from "motion/react";
 
 import type { PrecheckResult as PrecheckResultData } from "@l5asly/contracts";
 import { enterAnimation } from "@/components/enter-animation";
-import { formatTimestamp, getContentProps } from "./format";
+import { getContentProps } from "./format";
 import { VerdictScale, VerdictSignalChips } from "./verdict-insights";
 
 const recommendationLabels: Record<
@@ -28,14 +28,7 @@ export function PrecheckResult({
   onCreateSummary,
   isCreating,
 }: PrecheckResultProps) {
-  const details: string[] = [];
-  if (result.channel) {
-    details.push(result.channel);
-  }
-  if (result.durationSeconds !== null) {
-    details.push(formatTimestamp(result.durationSeconds));
-  }
-
+  // The title, channel and length are already in the video preview above.
   return (
     <Paper
       variant="outlined"
@@ -50,21 +43,7 @@ export function PrecheckResult({
           variant="outlined"
           color={result.verdict.recommendation === "skip" ? "warning" : "primary"}
           label={recommendationLabels[result.verdict.recommendation]}
-          sx={{ mb: 1.25 }}
         />
-        <Typography sx={{ fontWeight: 600 }} {...getContentProps(result.title)}>
-          {result.title}
-        </Typography>
-        {details.length ? (
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            sx={{ fontFamily: "var(--font-mono)" }}
-            {...getContentProps(details.join(" · "))}
-          >
-            {details.join(" · ")}
-          </Typography>
-        ) : null}
       </Box>
       <VerdictScale
         recommendation={result.verdict.recommendation}

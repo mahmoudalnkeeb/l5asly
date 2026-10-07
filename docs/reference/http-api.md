@@ -30,6 +30,7 @@ An error response:
 | Method | Path | Success | Purpose |
 | --- | --- | --- | --- |
 | `GET` | `/api/health` | `200` | Service status and provider mode |
+| `POST` | `/api/summaries/preview` | `200` | Public details of a YouTube link: title, channel, length, thumbnail. No job is created |
 | `POST` | `/api/summaries/precheck` | `200` | Quick watch verdict for a YouTube link, from metadata only. No job is created |
 | `POST` | `/api/summaries/url` | `202` | Create and queue a job from a public URL |
 | `POST` | `/api/summaries/upload` | `202` | Create and queue a job from an uploaded file |
@@ -77,9 +78,15 @@ JSON body: summary options plus `url` (HTTP or HTTPS). A YouTube host without a 
 
 A rejected request deletes the uploaded file.
 
+### `POST /api/summaries/preview`
+
+JSON body: `url` (must be a YouTube video URL). Returns `{ title, channel, durationSeconds, thumbnailUrl, spokenLanguage }`. `thumbnailUrl` is an HTTPS URL or `null`. `spokenLanguage` is `"English"` or `"Arabic"` when YouTube reports one of them, otherwise `null`. The web app uses it to preset the spoken language unless the viewer has picked one.
+
 ### `POST /api/summaries/precheck`
 
 JSON body: `url` (must be a YouTube video URL), `language`, and optionally `expectation` and `viewerProfile`. Returns `{ title, channel, durationSeconds, verdict }`.
+
+The preview and the quick check share one metadata lookup per link, cached in memory for 10 minutes. A failed lookup is not cached.
 
 ### `POST /api/summaries/:id/retry`
 

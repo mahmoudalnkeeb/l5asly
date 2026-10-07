@@ -103,6 +103,52 @@ function chooseSetting(name: RegExp, option: string): void {
   fireEvent.click(screen.getByRole("option", { name: option }));
 }
 
+// Answers the create form's preview and quick check requests for a YouTube link.
+function mockLinkLookups({
+  spokenLanguage,
+}: {
+  spokenLanguage: SummaryLanguage | null;
+}) {
+  const fetchMock = vi.fn<typeof fetch>((path) => {
+    if (path === "/api/summaries/preview") {
+      return Promise.resolve(
+        Response.json({
+          data: {
+            title: "Kubernetes in 100 seconds",
+            channel: "Fireship",
+            durationSeconds: 128,
+            thumbnailUrl: "https://i.ytimg.com/vi/-xbzGngfQEw/hqdefault.jpg",
+            spokenLanguage,
+          },
+        }),
+      );
+    }
+    return Promise.resolve(
+      Response.json({
+        data: {
+          title: "Kubernetes in 100 seconds",
+          channel: "Fireship",
+          durationSeconds: 128,
+          verdict: {
+            recommendation: "skip",
+            confidence: 0.9,
+            headline: "This video doesn't answer your question",
+            reason: "It does not appear to answer your question.",
+            signals: {
+              answersQuestion: 0.1,
+              informationDensity: 0.8,
+              padding: 0.1,
+              knowledgeGap: 0.2,
+            },
+          },
+        },
+      }),
+    );
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
@@ -302,28 +348,7 @@ describe("Summary workflow", () => {
   });
 
   it("runs a quick check once a YouTube link is pasted and hides it once the link changes", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-      Response.json({
-        data: {
-          title: "Kubernetes in 100 seconds",
-          channel: "Fireship",
-          durationSeconds: 128,
-          verdict: {
-            recommendation: "skip",
-            confidence: 0.9,
-            headline: "This video doesn't answer your question",
-            reason: "It does not appear to answer your question.",
-            signals: {
-              answersQuestion: 0.1,
-              informationDensity: 0.8,
-              padding: 0.1,
-              knowledgeGap: 0.2,
-            },
-          },
-        },
-      }),
-    );
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = mockLinkLookups({ spokenLanguage: null });
     renderUi(<SummaryForm />);
 
     const urlField = screen.getByRole("textbox", { name: "Video" });
@@ -341,8 +366,12 @@ describe("Summary workflow", () => {
     expect(
       screen.getByRole("img", { name: "Verdict: Brief is enough" }),
     ).toBeInTheDocument();
-    // Only the YouTube link is checked, once the viewer stops typing.
-    expect(fetchMock).toHaveBeenCalledOnce();
+    // Only the YouTube link is looked up, once the viewer stops typing.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/summaries/preview",
+      expect.objectContaining({ method: "POST" }),
+    );
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/summaries/precheck",
       expect.objectContaining({ method: "POST" }),
@@ -352,6 +381,57 @@ describe("Summary workflow", () => {
       target: { value: "https://youtu.be/another" },
     });
     expect(screen.queryByText("Likely skip")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("group", { name: "Video preview" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("previews a pasted link and follows its spoken language for the quick check", async () => {
+    const fetchMock = mockLinkLookups({ spokenLanguage: "Arabic" });
+    renderUi(<SummaryForm />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Video" }), {
+      target: { value: "https://youtu.be/-xbzGngfQEw" },
+    });
+
+    const preview = await screen.findByRole("group", { name: "Video preview" });
+    expect(preview).toHaveTextContent("Kubernetes in 100 seconds");
+    expect(preview).toHaveTextContent("Fireship · 2:08");
+    expect(
+      screen.getByRole("combobox", { name: /^Spoken in/ }),
+    ).toHaveTextContent("Arabic");
+    expect(
+      screen.getByRole("combobox", { name: /^Brief in/ }),
+    ).toHaveTextContent("Arabic");
+
+    await screen.findByText("Likely skip");
+    const precheckCalls = fetchMock.mock.calls.filter(
+      ([path]) => path === "/api/summaries/precheck",
+    );
+    // The quick check waits for the preview, so it runs once, in Arabic.
+    expect(precheckCalls).toHaveLength(1);
+    expect(JSON.parse(String(precheckCalls[0]?.[1]?.body))).toMatchObject({
+      language: "Arabic",
+    });
+  });
+
+  it("keeps a spoken language the viewer chose over the preview's", async () => {
+    mockLinkLookups({ spokenLanguage: "Arabic" });
+    renderUi(<SummaryForm />);
+    // Picking the default again is still a choice, even though the value is
+    // back where it started.
+    chooseSetting(/^Spoken in/, "Arabic");
+    chooseSetting(/^Spoken in/, "English");
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Video" }), {
+      target: { value: "https://youtu.be/-xbzGngfQEw" },
+    });
+
+    await screen.findByRole("group", { name: "Video preview" });
+    await screen.findByText("Likely skip");
+    expect(
+      screen.getByRole("combobox", { name: /^Spoken in/ }),
+    ).toHaveTextContent("English");
   });
 
   it("rejects dropped files that are not media or are over the upload limit", async () => {

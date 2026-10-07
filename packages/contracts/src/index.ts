@@ -272,6 +272,23 @@ export const precheckResultSchema = z.object({
   verdict: watchVerdictSchema,
 });
 
+export const videoPreviewRequestSchema = z
+  .object({ url: z.url() })
+  .refine((input) => isYouTubeUrl(input.url), {
+    path: ["url"],
+    message: "Previews are available for YouTube links only.",
+  });
+
+// Public details shown as soon as a link is pasted, before any verdict.
+export const videoPreviewSchema = z.object({
+  title: z.string().min(1),
+  channel: z.string().nullable(),
+  durationSeconds: z.number().nonnegative().nullable(),
+  thumbnailUrl: z.url().nullable(),
+  // Null when YouTube doesn't name the language or L5asly doesn't support it.
+  spokenLanguage: summaryLanguageSchema.nullable(),
+});
+
 export const apiErrorSchema = z.object({
   code: z.string(),
   message: z.string(),
@@ -297,6 +314,8 @@ export type VerdictSignals = z.infer<typeof verdictSignalsSchema>;
 export type TimelineWindow = z.infer<typeof timelineWindowSchema>;
 export type PrecheckRequest = z.infer<typeof precheckRequestSchema>;
 export type PrecheckResult = z.infer<typeof precheckResultSchema>;
+export type VideoPreviewRequest = z.infer<typeof videoPreviewRequestSchema>;
+export type VideoPreview = z.infer<typeof videoPreviewSchema>;
 export type SummaryResult = z.infer<typeof summaryResultSchema>;
 export type SummaryJob = z.infer<typeof summaryJobSchema>;
 export type JobStep = z.infer<typeof jobStepSchema>;

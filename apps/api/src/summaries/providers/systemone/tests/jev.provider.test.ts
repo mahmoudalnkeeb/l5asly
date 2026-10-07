@@ -186,6 +186,8 @@ describe("JevProvider", () => {
         durationSeconds: null,
         description: "A fast overview.",
         chapters: [],
+        thumbnailUrl: null,
+        languageCode: null,
       },
       language: "Arabic",
     });
