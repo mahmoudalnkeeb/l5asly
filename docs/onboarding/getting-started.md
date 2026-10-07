@@ -15,9 +15,9 @@ You don't need Python or a C/C++ toolchain. Turso and FFmpeg ship as prebuilt bi
 
 ## First run
 
-```powershell
+```bash
 pnpm install
-Copy-Item .env.example .env
+cp .env.example .env
 docker compose up -d redis
 pnpm dev
 ```
@@ -31,7 +31,7 @@ Open `http://localhost:5173`. Use the built-in sample URL, or upload any audio o
 
 ## Checks to run before you push
 
-```powershell
+```bash
 pnpm check
 ```
 
@@ -39,7 +39,7 @@ pnpm check
 
 To work on one package:
 
-```powershell
+```bash
 pnpm --filter @l5sly/api test
 pnpm --filter @l5sly/web dev
 ```
@@ -48,7 +48,7 @@ pnpm --filter @l5sly/web dev
 
 Mock mode exercises the whole product flow with fixed results. To call the real services, set `PROVIDER_MODE=live` in `.env` and fill in the keys. The API refuses to start if a required key is missing. Every variable is described in [Configuration](../reference/configuration.md).
 
-Live YouTube processing also needs `yt-dlp`. The repository ships `bin/yt-dlp.exe` for Windows, and `.env.example` already points to it. On other systems, install `yt-dlp` and set `YTDLP_PATH`.
+Live YouTube processing uses `yt-dlp`. `pnpm install` downloads the standalone build for your OS and CPU into `apps/api/bin` (git-ignored) and verifies its pinned SHA-256 checksum. The API uses that binary unless you set `YTDLP_PATH`.
 
 ## Troubleshooting
 
@@ -58,6 +58,7 @@ Live YouTube processing also needs `yt-dlp`. The repository ships `bin/yt-dlp.ex
 | The web app shows "The server could not be reached" | The API is not running on port 4000, or it is still waiting for Redis. |
 | A dependency with native binaries fails after a fresh install | pnpm runs install scripts only for the packages listed under `allowBuilds` in `pnpm-workspace.yaml`. Add the package there only if it really needs its install script. |
 | Startup fails with `... is required when PROVIDER_MODE is live` | Set the missing key in `.env`, or switch back to `PROVIDER_MODE=mock`. |
-| A YouTube job fails with "The yt-dlp executable was not found" | Set `YTDLP_PATH` to a valid `yt-dlp` binary. |
+| A YouTube job fails with "The yt-dlp executable was not found" | The download during `pnpm install` failed (it prints a `yt-dlp:` warning), or your platform has no standalone build. Run `pnpm --filter @l5sly/api run install:yt-dlp`, or install yt-dlp yourself and set `YTDLP_PATH`. |
+| `pnpm install` fails with "does not match the pinned SHA-256 checksum" | The downloaded yt-dlp differs from the pinned release. Don't bypass it. Retry, and report it if it persists. |
 
 Local data lives in `./data` (the database file and uploads). Delete that folder to start from an empty library.

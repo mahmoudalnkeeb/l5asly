@@ -8,6 +8,8 @@
     "dev": "concurrently -n types,server -c yellow,green \"tsc -p tsconfig.build.json --watch --preserveWatchOutput\" \"node --watch dist/main.js\"",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "postinstall": "node scripts/install-yt-dlp.mjs",
+    "install:yt-dlp": "node scripts/install-yt-dlp.mjs",
     "test": "vitest run",
     "start": "node dist/main.js"
   },

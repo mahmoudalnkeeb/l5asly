@@ -7,6 +7,14 @@ import { z } from "zod";
 const projectRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 loadEnvironmentFile({ path: path.join(projectRoot, ".env"), quiet: true });
 
+// Downloaded for this platform by scripts/install-yt-dlp.mjs on `pnpm install`.
+const installedYtDlpPath = fileURLToPath(
+  new URL(
+    process.platform === "win32" ? "../../bin/yt-dlp.exe" : "../../bin/yt-dlp",
+    import.meta.url,
+  ),
+);
+
 const environmentSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -30,7 +38,7 @@ const environmentSchema = z
     JEV_BASE_URL: z.url().default("https://backend.sovereigneg.com/v1"),
     JEV_MODEL: z.string().min(1).default("jev-1.13"),
     JEV_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(900_000).default(90_000),
-    YTDLP_PATH: z.string().min(1).default("yt-dlp"),
+    YTDLP_PATH: z.string().min(1).default(installedYtDlpPath),
     YTDLP_TIMEOUT_MS: z.coerce.number().int().min(10_000).max(1_800_000).default(900_000),
   })
   .superRefine((environment, context) => {

@@ -34,10 +34,18 @@ In `live` mode, `DEEPGRAM_API_KEY`, `LLM_API_KEY`, and `JEV_API_KEY` are require
 | `JEV_BASE_URL` | `https://backend.sovereigneg.com/v1` | | |
 | `JEV_MODEL` | `jev-1.13` | | |
 | `JEV_TIMEOUT_MS` | `90000` | 1,000 to 900,000 | Per request |
-| `YTDLP_PATH` | `yt-dlp` | | A command name on `PATH`, or a path to the binary |
+| `YTDLP_PATH` | `apps/api/bin/yt-dlp(.exe)` | | The binary `pnpm install` downloads. Set it to a command name on `PATH` or a path to use another one |
 | `YTDLP_TIMEOUT_MS` | `900000` | 10,000 to 1,800,000 | Per download or metadata lookup |
 
 Keys are only ever read by the server. They are sent as `authorization` headers by the named HTTP clients and never logged.
+
+## Install time
+
+This variable is read by `apps/api/scripts/install-yt-dlp.mjs` during `pnpm install`, not by the API.
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `YTDLP_SKIP_DOWNLOAD` | unset | Set to `1` to skip the yt-dlp download, for example in a container that installs yt-dlp itself or in a mock-only CI job |
 
 ## Adding a variable
 

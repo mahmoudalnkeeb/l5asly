@@ -1,73 +1,53 @@
 # L5asly
 
-L5asly turns a video upload or public video URL into a concise summary, structured notes, a timestamped transcript, and a recommendation on whether the full video is worth watching.
+L5asly tells you whether a video is worth your time, and if it isn't, what it says.
 
-The default setup uses deterministic mock providers, so the complete product flow works locally without credentials. Live mode keeps all provider keys in the API server and connects Deepgram for transcription plus OpenAI-compatible summary and verdict providers.
+You give it a video upload or a public video URL, and optionally the question you want answered. It transcribes the video and writes a short brief that answers your question first. It also gives a verdict (watch it, watch only the key moments, or skip it), a timeline of which parts matter to you, and the full timestamped transcript. For YouTube links, a quick check gives a provisional verdict in a few seconds, from the title, description and chapters alone, before anything is downloaded.
 
-## Stack
+## Quick start
 
-- React 19, Vite, React Router, TanStack Query, React Hook Form
-- Material UI components and icons with a shared light/dark theme
-- Tailwind CSS 4 for transcript text utilities
-- NestJS 12 on Express, Zod, Multer, FFmpeg
-- Turso (embedded SQLite-compatible database) for persistence
-- BullMQ on Redis for the summary job queue
-- @nestjs/http-client for provider HTTP calls, nestjs-pino for logs
-- pnpm workspaces
-- Shared TypeScript contracts for client and server boundaries
-- Vitest, Testing Library, and Supertest
+You need Node.js 24 or newer, pnpm 12, and Docker to run Redis.
 
-## Run locally
-
-Requirements: Node.js 24 or newer, pnpm 12, and Redis (the job queue). Turso ships prebuilt binaries, so no Python or native compiler toolchain is required. `compose.yaml` starts a local Redis configured for BullMQ.
-
-```powershell
+```bash
 pnpm install
-Copy-Item .env.example .env
+cp .env.example .env
 docker compose up -d redis
 pnpm dev
 ```
 
-Open `http://localhost:5173`. The API listens on `http://localhost:4000`, and Vite proxies `/api` requests to it.
+Open `http://localhost:5173`. The app starts in mock mode, which returns built-in sample results, so the whole flow works without any API keys. Paste the sample URL from the create page, or upload any audio or video file, and follow the job from the queue to the result.
 
-Mock mode is enabled by default. Use the built-in sample URL or upload an audio/video file to exercise the full queued, processing, result, and library flow.
+## How a video gets summarized
 
-## Languages and personalized summaries
+The API never processes a video inside the request. It stores a job, puts it on a Redis queue, and returns right away. A worker then prepares the audio (downloading it from YouTube, or extracting it from a video file with FFmpeg) and transcribes it with Deepgram. Then it runs three things at once: an LLM writes the brief, and Jev scores the verdict and the timeline. The web app polls the job until it finishes, so you can close the page and reopen the job later from Library.
 
-Only Arabic and English are supported. Set **Video language** to the spoken language before creating a job. Transcription uses that language explicitly and does not translate speech. **Summary language**, under Advanced options, independently controls the written brief and verdict: an Arabic video can produce an English summary while keeping its Arabic transcript.
+Every step saves its output before the next one starts. That's what makes failures cheap: if the brief fails, retrying it reuses the saved transcript instead of downloading and transcribing the video again.
 
-Open **Profile** to save your background, existing knowledge, learning goals, and explanation preferences once. Edit or clear it whenever needed. It is saved in this browser, without an account or cross-device sync. Each new job stores a snapshot and sends it to the summary and verdict providers. Avoid sensitive information. Existing summaries are not changed by profile edits.
+## What you can configure per video
 
-New briefs include a direct answer, personal relevance, preparation, and practical next steps. Your question for a specific video takes priority over saved goals. Long transcripts that exceed the model input budget are sampled across the entire timeline, with an explicit limitation in the brief.
+### Language
 
-Summary generation follows a question-first analysis guide: understand the question, extract and merge relevant ideas, then reconstruct a natural personalized answer. It does not recap the entire video unless requested, invent user experience, or pad narrow answers to fill section quotas. Key points use `sections`, the personalized answer uses `viewerAnswer`, and optional verification notes use `notes` and grounded `recommendedMoments`. Missing information and unsupported claims remain explicit. The guide and depth limits live in `apps/api/src/summaries/providers/llm/summary-prompt.ts`.
+L5asly supports Arabic and English. Video language is the language spoken in the video. Transcription uses it as is and never translates. Summary language, under Advanced options, sets the language of the brief and verdict. An Arabic lecture can get an English brief and still keep its Arabic transcript.
 
-## Watch insights from Jev
+### Your profile and your question
 
-Jev answers several structured questions per video, not just the yes/no verdict:
+The Profile page stores your background, what you already know, your goals, and how you like things explained. It lives in your browser's local storage; there's no account and no sync between devices. Each job keeps a snapshot of the profile when it's created, so later edits don't change old summaries. Don't put anything sensitive in it, because it's sent to the AI services.
 
-- **Verdict signals.** Whether the video answers your question, how dense it is, how much filler it has, and whether it assumes background your profile lacks. The verdict reason is written from these signals. When a question was asked and the video clearly does not answer it, the verdict is to skip, with a reason that says so.
-- **Relevance timeline.** The transcript is split into up to 12 timed parts, each scored for your question and goals in one request. The result page shows where the value is and the time worth watching. Parts without speech count as not relevant and are not sent to Jev.
-- **Grounding check.** After the summary is written, Jev checks each key point against the transcript. Points it cannot match are marked "Not found in transcript". The check is skipped for transcripts longer than Jev's input budget, so content it never saw is not flagged as unsupported.
-- **Quick check.** For YouTube links, **Quick check** reads only the title, description and chapters through `yt-dlp --dump-single-json` and returns a provisional verdict in seconds. No job is created, and nothing is downloaded or transcribed. `POST /api/summaries/precheck` takes `url`, `language`, and optional `expectation` and `viewerProfile`.
+The question you ask about a specific video wins over your saved goals. The brief answers that question instead of recapping the whole video, and it says so when the video doesn't contain the answer. Very long transcripts are sampled evenly across the video, and the brief tells you when that happened.
 
-The timeline and grounding check are optional extras: if either fails, the job still completes without it, and the failure is logged. Their results are checkpointed with the summary, so a summary retry does not repeat them unnecessarily. Results saved before these features existed still display normally.
+### The verdict
 
-If an older Arabic job contains only English fragments, create it again with **Video language: Arabic** after rebuilding and restarting the server. Missed speech cannot be restored from the old transcript. Database schema upgrades run automatically on startup and preserve existing jobs.
+Jev doesn't just answer "watch or skip". It asks whether the video answers your question, how much of it is filler, and whether it assumes background your profile says you don't have. The verdict's reason is written from those answers. It also scores up to 12 timed parts of the video for the relevance timeline, and checks each key point of the brief against the transcript. Points it can't find are marked "Not found in transcript".
 
-## Quality checks
+The timeline and that check are extras. If either one fails, the job still completes without it.
 
-```powershell
-pnpm typecheck
-pnpm test
-pnpm build
-```
+## When something fails
 
-`pnpm check` runs all three in sequence. The API tests need no Redis: the end-to-end suite replaces the BullMQ queue with an in-process stand-in.
+A failed job shows what went wrong and what a retry will do. A retry keeps the same job, question, languages, and profile snapshot, and starts again from the step that failed. Media from a failed job is kept for 24 hours. After that, if the retry still needs the media, you'll be asked to select the same file again. Saved transcripts are kept until you delete the job. If the server restarts mid-job, the job is marked as interrupted and you can retry it.
 
-## Live providers
+## Using the real services
 
-Set `PROVIDER_MODE=live` in `.env`, then provide:
+Set `PROVIDER_MODE=live` in `.env` and fill in the keys:
 
 ```text
 DEEPGRAM_API_KEY=
@@ -79,56 +59,29 @@ JEV_BASE_URL=https://backend.sovereigneg.com/v1
 JEV_MODEL=jev-1.13
 ```
 
-Live mode validates every required credential during startup. Keys are read only by the server and redacted from logs. Rotate any credential that was previously placed in `plan.txt` or another checked-in document before using the live pipeline.
+The API checks the keys at startup and won't start if one is missing. Keys stay on the server and never appear in logs.
 
-### YouTube URLs
+The LLM endpoint must support strict structured output (`response_format` with a `json_schema` and `strict: true`). L5asly relies on it to get a brief in a known shape. If the endpoint rejects it, jobs fail with `SUMMARY_SCHEMA_REJECTED` instead of falling back to output that hasn't been checked.
 
-Live YouTube summarization downloads the audio on the API host with [yt-dlp](https://github.com/yt-dlp/yt-dlp), then sends the local audio file to Deepgram. The Windows example configuration uses the bundled `bin/yt-dlp.exe`; on other hosts, install `yt-dlp` and set `YTDLP_PATH` as needed. `YTDLP_TIMEOUT_MS` controls the maximum download time. Temporary media is deleted after successful processing; failed transcription jobs retain media for the retry window below.
+YouTube audio is downloaded on the API host with [yt-dlp](https://github.com/yt-dlp/yt-dlp). `pnpm install` downloads the right yt-dlp build for your OS and CPU into `apps/api/bin`, checks it against a pinned SHA-256 checksum, and the API uses it by default. Set `YTDLP_PATH` only if you want a different binary. Every setting, with its default and allowed range, is in [docs/reference/configuration.md](docs/reference/configuration.md).
 
-## Waiting, failures and recovery
+## Running in production
 
-The processing page uses a Material progress spinner, elapsed/current-step timers, and a three-step indicator. Progress reflects completed milestones rather than estimated time. A network refresh failure keeps the last known state visible with a reconnection warning. You can leave the page and reopen the job from Library.
-
-Failed jobs offer **Retry** and **Delete job**. Retries keep the same ID, question, language settings, and original profile snapshot. The server saves checkpoints after media preparation, transcription, summary generation, and verdict generation. A summary retry reuses the saved transcript and any completed verdict instead of downloading/transcribing again. Server restarts mark interrupted jobs as failed while keeping their checkpoints.
-
-Failed-job media is available for retries for 24 hours. Expired media is removed on startup and during hourly cleanup. Saved transcripts remain available for summary retries until the job is deleted. If upload media is missing or expired and there is no transcript, select the same file to retry. Older jobs created before checkpoints were added must restart from their URL or a replacement upload. Deletion removes the job, its checkpoints, and retained media. Active jobs cannot be deleted or retried while processing/cleanup is still running.
-
-Summary requests use strict [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=chat) with `zodResponseFormat`. The wire contract is defined once in `apps/api/src/summaries/providers/llm/summary-output-schema.ts`: the same Zod schema generates the request's `json_schema` and validates the response. Every field is required, lists with no content use `[]`, and absent guidance uses `null`. `caveats` and `personalizedGuidance.nextSteps` contain only strings; objects and unexpected keys are rejected. Nullable guidance maps back to the existing optional API field without changing saved results.
-
-The configured summary model and endpoint must support `response_format: { type: "json_schema", json_schema: { strict: true, ... } }`. If the provider rejects this response format, the job reports `SUMMARY_SCHEMA_REJECTED`; it never silently falls back to unconstrained JSON mode. Malformed JSON, truncated output, model refusals, and invalid field paths get separate safe diagnostics; raw provider output is not stored in errors. Rebuild and restart the server to activate changes, then use **Retry summary** to reuse a saved transcript.
-
-## Production
-
-```powershell
+```bash
 pnpm build
-$env:NODE_ENV = "production"
-pnpm start
+NODE_ENV=production pnpm start
 ```
 
-In production, the API also serves the built client from `apps/web/dist`. Configure `PORT`, `CLIENT_ORIGIN`, `DATABASE_PATH`, `REDIS_URL`, `UPLOAD_DIR`, `MAX_UPLOAD_MB`, and `LOG_LEVEL` as needed. Redis must use `maxmemory-policy noeviction`, as BullMQ requires.
+In Windows PowerShell, set the variable first: `$env:NODE_ENV = "production"; pnpm start`.
 
-## API
+A single process serves both the API and the built web app. You need a Redis server with `maxmemory-policy noeviction` (BullMQ requires it), persistent disk for `DATABASE_PATH` and `UPLOAD_DIR`, and `CLIENT_ORIGIN` set to the app's public URL.
 
-| Method   | Route                       | Purpose                                                                         |
-| -------- | --------------------------- | ------------------------------------------------------------------------------- |
-| `GET`    | `/api/health`               | Service and provider-mode health                                                |
-| `POST`   | `/api/summaries/url`        | Queue a public URL                                                              |
-| `POST`   | `/api/summaries/upload`     | Queue multipart media in the `video` field                                      |
-| `GET`    | `/api/summaries`            | List recent summaries                                                           |
-| `GET`    | `/api/summaries/:id`        | Read job progress or its result                                                 |
-| `POST`   | `/api/summaries/:id/cancel` | Cancel queued or processing work                                                |
-| `POST`   | `/api/summaries/:id/retry`  | Retry a failed job; optional multipart `video` if replacement media is required |
-| `DELETE` | `/api/summaries/:id`        | Delete a terminal job and retained data; returns `204`                          |
-
-Requests are validated at the transport boundary, and responses use consistent `data` or `error` envelopes with request IDs on errors. The full reference is in [docs/reference/http-api.md](docs/reference/http-api.md).
+One limitation to know before deploying: the database file, uploaded media, and some job locking all live on one host, so you can't run several API instances behind a load balancer yet. [docs/proposals/optimization-review.md](docs/proposals/optimization-review.md) lists this and other known gaps.
 
 ## Contributing
 
-Start with the [contributor docs](docs/README.md). They cover local setup, a tour of the codebase, the architecture (queue, pipeline, providers, persistence), backend and frontend conventions, testing, and reference pages for the HTTP API, configuration, and error codes. [AGENTS.md](AGENTS.md) defines the coding standard.
+`pnpm check` typechecks, tests, and builds every package. The tests don't need Redis, network access, or API keys.
 
-```text
-apps/api/          NestJS API and queue worker
-apps/web/          React application
-packages/contracts Shared Zod schemas and TypeScript contracts
-docs/              Contributor documentation
-```
+The repository is a pnpm workspace. The NestJS API and the React app share their request and response schemas through `packages/contracts`, so a change to the API's shape is type-checked on both sides. Start with the [contributor docs](docs/README.md). They walk through setup, the codebase, the architecture, and the [HTTP API](docs/reference/http-api.md). [AGENTS.md](AGENTS.md) is the coding standard.
+
+The stack: React 19, Vite, TanStack Query, and Material UI on the web side; NestJS 12, BullMQ on Redis, and Turso (an embedded SQLite-compatible database) on the API side; Deepgram, an OpenAI-compatible LLM, and Jev for the AI work; Vitest throughout.
