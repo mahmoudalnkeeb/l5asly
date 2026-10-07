@@ -267,7 +267,12 @@ describe("summary API", () => {
       .expect(202);
 
     const createdJob = summaryJobSchema.parse(createResponse.body.data);
-    expect(createResponse.body.data).not.toHaveProperty("sourceUrl");
+    expect(createdJob.source).toEqual({
+      type: "youtube",
+      name: "YouTube video",
+      url: "https://www.youtube.com/watch?v=abc123",
+    });
+    expect(createResponse.body.data).not.toHaveProperty("sourcePath");
     const jobId = createdJob.id;
     let completedJob;
     const deadline = Date.now() + 5_000;
@@ -311,9 +316,11 @@ describe("summary API", () => {
     const id = randomUUID();
     await repository.create({
       id,
-      sourceType: "url",
-      sourceName: "example.com",
-      sourceUrl: "https://example.com/video.mp4",
+      source: {
+        type: "public_video",
+        name: "video.mp4",
+        url: "https://example.com/video.mp4",
+      },
       options: {
         language: "English",
         depth: "quick",
@@ -389,8 +396,7 @@ describe("summary API", () => {
     const id = randomUUID();
     await repository.create({
       id,
-      sourceType: "upload",
-      sourceName: "old.mp4",
+      source: { type: "upload", name: "old.mp4" },
       sourcePath: path.join(testDirectory, "missing.mp4"),
       sourceMimeType: "video/mp4",
       options: { language: "English", depth: "quick" },

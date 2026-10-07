@@ -43,7 +43,7 @@ The worker runs with BullMQ's default concurrency of 1, so jobs run one at a tim
 
 | Progress | Stage text | Step | Checkpoint saved |
 | --- | --- | --- | --- |
-| 12 | Preparing media | Use the upload, or download YouTube audio (live mode), then extract audio with FFmpeg when the source is a video. Other URLs are passed to speech-to-text as is, without a download | `preparedMedia`, `mediaExpiresAt` |
+| 12 | Preparing media | Use the upload, or download YouTube audio (live mode) and store the video title as the source name, then extract audio with FFmpeg when the source is a video. Other URLs are passed to speech-to-text as is, without a download | `preparedMedia`, `mediaExpiresAt` |
 | 18 | Downloading audio from YouTube | Live mode only | (same as above) |
 | 34 | Transcribing speech | Speech-to-text in the job's source language | `transcription` |
 | 68 | Generating the brief | Three calls in parallel: the summary (then a grounding check), the watch verdict, and the relevance timeline | `summary`, `verdict`, `timeline`, each when it finishes |

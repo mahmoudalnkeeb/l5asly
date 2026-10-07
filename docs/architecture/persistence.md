@@ -18,7 +18,7 @@ erDiagram
   summary_jobs {
     TEXT id PK
     TEXT status "queued | processing | completed | failed | cancelled"
-    TEXT source_type "upload | url"
+    TEXT source_type "upload | youtube | public_video | public_audio"
     TEXT source_name
     TEXT source_url
     TEXT source_path
@@ -46,7 +46,7 @@ erDiagram
   }
 ```
 
-- `CHECK` constraints enforce the enum columns and the progress range.
+- `CHECK` constraints enforce the enum columns and the progress range. Another `CHECK` requires `source_url` for every link source and forbids it for uploads.
 - `summary_checkpoints` uses `ON DELETE CASCADE`, so deleting a job deletes its checkpoint. Foreign keys are switched on at connection time.
 - `result_json` holds the full `SummaryResult` from the contracts package, including the transcript.
 - `checkpoint_json` follows `summaryCheckpointSchema` in `summary-checkpoint.ts`.
@@ -63,12 +63,14 @@ To add a column, append it to `addedColumns` in `database/database.ts`. The upgr
 
 Renaming or dropping columns isn't supported by this approach. Discuss it in an issue first.
 
+SQLite can't change a `CHECK` constraint in place. When `source_type` gained the `youtube`, `public_video`, and `public_audio` values, `upgradeSourceTypes` rebuilt the table once: it copies every row into a new table, reclassifies each old `url` row with `describeUrlSource`, then swaps the tables inside one transaction. Foreign keys are switched off for the swap, because dropping the old table would otherwise cascade-delete every checkpoint. It detects an upgraded table from its stored `CREATE TABLE` SQL, so it runs only once. Old YouTube rows keep their stored host name, since the title is only known after a download.
+
 ## Repository rules
 
 `SummaryRepository` is the only code that runs SQL against these tables.
 
 - **Validate on read.** Rows come back as `unknown`, and each one is parsed with `summaryRowSchema`. JSON columns are parsed and validated with their contract schemas.
-- **Map explicitly.** `mapRow` builds a `StoredSummaryJob`, and `SummariesService.toPublicJob` builds the public `SummaryJob`. Internal fields such as `sourcePath` and `sourceUrl` never reach the API response.
+- **Map explicitly.** `mapRow` builds a `StoredSummaryJob`, and `SummariesService.toPublicJob` builds the public `SummaryJob`. Internal fields such as `sourcePath` and `sourceMimeType` never reach the API response. `source_url` does: link sources return it as `source.url` so users can open the original media.
 - **Guard state changes in SQL.** Status changes include a `WHERE status ...` condition, for example `complete` doesn't overwrite a cancelled job, and `retry` only updates a failed one. Callers check `changes` when they need to know whether the update applied.
 - **Use transactions for multi-statement writes.** `retry` uses `database.transactionAsync(...).immediate()`. It reserves the connection, so statements from other requests can't run in the middle of the transaction. Keep transactions short, and never call a provider or the queue inside one.
 - **Parameterize everything.** Use `?` placeholders. Never build SQL from values with string interpolation.

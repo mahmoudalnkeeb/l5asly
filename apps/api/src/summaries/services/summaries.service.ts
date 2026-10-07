@@ -21,6 +21,7 @@ import {
   type StoredSummaryJob,
 } from "../summary.repository.js";
 import type { UploadedMedia } from "../uploads/uploaded-media.pipe.js";
+import { describeUrlSource } from "../url-source.js";
 import { SummaryPipeline } from "./summary-pipeline.service.js";
 
 @Injectable()
@@ -37,14 +38,10 @@ export class SummariesService {
   ) {}
 
   async createFromUrl(input: CreateUrlSummaryInput): Promise<SummaryJob> {
-    const url = new URL(input.url);
-    const sourceName = url.hostname.replace(/^www\./, "");
-
+    const source = describeUrlSource(input.url);
     const job = await this.repository.create({
       id: randomUUID(),
-      sourceType: "url",
-      sourceName,
-      sourceUrl: input.url,
+      source: { type: source.type, name: source.name, url: input.url },
       options: {
         language: input.language,
         sourceLanguage: input.sourceLanguage ?? input.language,
@@ -64,8 +61,7 @@ export class SummariesService {
   ): Promise<SummaryJob> {
     const job = await this.repository.create({
       id: randomUUID(),
-      sourceType: "upload",
-      sourceName: media.originalName,
+      source: { type: "upload", name: media.originalName },
       sourcePath: media.path,
       sourceMimeType: media.mimeType,
       options,
@@ -291,10 +287,7 @@ export class SummariesService {
     return {
       id: job.id,
       status: job.status,
-      source: {
-        type: job.source.type,
-        name: job.source.name,
-      },
+      source: job.source,
       options: {
         language: job.options.language,
         sourceLanguage: job.options.sourceLanguage,

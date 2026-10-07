@@ -17,6 +17,7 @@ import {
 } from "@/features/summaries/processing-state";
 import { SummaryResult } from "@/features/summaries/summary-result";
 import { FailedSummaryState } from "@/features/summaries/failed-summary-state";
+import { SourceDetails } from "@/features/summaries/source-details";
 import {
   cancelSummary,
   deleteSummary,
@@ -160,13 +161,7 @@ function SummaryJobView({ summaryId }: { summaryId: string }) {
   if (job.status === "cancelled") {
     return (
       <Container maxWidth="sm" sx={{ py: 6 }}>
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          sx={{ fontFamily: "var(--font-mono)", overflowWrap: "anywhere" }}
-        >
-          {job.source.name}
-        </Typography>
+        <SourceDetails source={job.source} />
         <Typography variant="h1" sx={{ mt: 2 }}>
           This job was cancelled
         </Typography>
@@ -212,7 +207,7 @@ function SummaryJobView({ summaryId }: { summaryId: string }) {
   return (
     <SummaryResult
       result={job.result}
-      sourceName={job.source.name}
+      source={job.source}
       requestedLanguage={job.options.language}
     />
   );
