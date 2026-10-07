@@ -18,7 +18,7 @@ import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
 import Replay from "@mui/icons-material/Replay";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import type { JobStep, SummaryJob } from "@l5sly/contracts";
+import type { JobStep, SummaryJob } from "@l5asly/contracts";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { getLeadCardShadow } from "@/components/material-theme";
 import { findStepForProgress, JOB_STEPS } from "./job-steps";

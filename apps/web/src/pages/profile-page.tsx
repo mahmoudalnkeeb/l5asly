@@ -14,7 +14,7 @@ import LockOutlined from "@mui/icons-material/LockOutlined";
 import { useEffect, useId, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 
-import { viewerProfileSchema, type ViewerProfile } from "@l5sly/contracts";
+import { viewerProfileSchema, type ViewerProfile } from "@l5asly/contracts";
 import {
   Composer,
   ComposerCounter,

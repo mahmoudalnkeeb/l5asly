@@ -9,15 +9,15 @@ COPY packages/contracts/package.json packages/contracts/
 COPY apps/api/package.json apps/api/
 COPY apps/api/scripts apps/api/scripts
 # The runtime stage installs yt-dlp, so skip it here.
-RUN YTDLP_SKIP_DOWNLOAD=1 pnpm install --frozen-lockfile --filter "@l5sly/api..." --filter l5sly
+RUN YTDLP_SKIP_DOWNLOAD=1 pnpm install --frozen-lockfile --filter "@l5asly/api..." --filter l5asly
 
 COPY packages/contracts packages/contracts
 COPY apps/api apps/api
-RUN pnpm --filter @l5sly/contracts build && pnpm --filter @l5sly/api build
+RUN pnpm --filter @l5asly/contracts build && pnpm --filter @l5asly/api build
 
 # Copies the API with production dependencies only. Install scripts run here,
 # which downloads yt-dlp and FFmpeg for the image's platform.
-RUN pnpm --filter @l5sly/api deploy --prod /deploy
+RUN pnpm --filter @l5asly/api deploy --prod /deploy
 
 FROM node:24-slim
 ENV NODE_ENV=production

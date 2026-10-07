@@ -8,7 +8,7 @@ import type {
   SummaryLanguage,
   TimelineWindow,
   WatchVerdict,
-} from "@l5sly/contracts";
+} from "@l5asly/contracts";
 
 import { PinoLogger } from "nestjs-pino";
 
@@ -609,7 +609,7 @@ describe("SummariesService and SummaryPipeline", () => {
   });
 
   it("downloads YouTube media before transcription and cleans it up", async () => {
-    const testDirectory = await mkdtemp(path.join(tmpdir(), "l5sly-youtube-"));
+    const testDirectory = await mkdtemp(path.join(tmpdir(), "l5asly-youtube-"));
     const downloadedPath = path.join(testDirectory, "download.webm");
     await writeFile(downloadedPath, "test media");
 

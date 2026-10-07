@@ -9,7 +9,7 @@ import {
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { SummaryListItem } from "@l5sly/contracts";
+import type { SummaryListItem } from "@l5asly/contracts";
 import { ThemeProvider } from "@/components/theme-provider";
 import { LibraryPage } from "./library-page";
 

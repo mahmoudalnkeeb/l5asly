@@ -1,6 +1,6 @@
 import type { PipeTransform } from "@nestjs/common";
 
-import { summaryOptionsSchema, type SummaryOptions } from "@l5sly/contracts";
+import { summaryOptionsSchema, type SummaryOptions } from "@l5asly/contracts";
 
 import { AppError } from "../../common/errors.js";
 

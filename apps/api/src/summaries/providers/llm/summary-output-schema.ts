@@ -5,7 +5,7 @@ import {
   recommendedMomentSchema,
   summaryNoteSchema,
   summarySectionSchema,
-} from "@l5sly/contracts";
+} from "@l5asly/contracts";
 
 // Structured output requires every key. Empty lists and null guidance represent absence.
 export const summaryOutputSchema = z.strictObject({

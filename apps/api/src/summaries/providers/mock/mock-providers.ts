@@ -2,7 +2,7 @@ import type {
   SummaryLanguage,
   TimelineWindow,
   WatchVerdict,
-} from "@l5sly/contracts";
+} from "@l5asly/contracts";
 
 import type {
   GeneratedSummary,

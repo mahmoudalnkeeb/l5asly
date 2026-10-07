@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { map, type Observable } from "rxjs";
 
-import type { ApiResponse } from "@l5sly/contracts";
+import type { ApiResponse } from "@l5asly/contracts";
 
 @Injectable()
 export class ResponseEnvelopeInterceptor<T>

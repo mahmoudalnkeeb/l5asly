@@ -1,6 +1,6 @@
 # Persistence
 
-Jobs and checkpoints are stored in an embedded [Turso](https://github.com/tursodatabase/turso/tree/main/bindings/javascript) database (`@tursodatabase/database`). Turso is SQLite-compatible, runs inside the API process, and writes a single file at `DATABASE_PATH` (default `./data/l5sly.db`). Its JavaScript API is fully async.
+Jobs and checkpoints are stored in an embedded [Turso](https://github.com/tursodatabase/turso/tree/main/bindings/javascript) database (`@tursodatabase/database`). Turso is SQLite-compatible, runs inside the API process, and writes a single file at `DATABASE_PATH` (default `./data/l5asly.db`). Its JavaScript API is fully async.
 
 Code: `apps/api/src/database/` and `apps/api/src/summaries/summary.repository.ts`.
 

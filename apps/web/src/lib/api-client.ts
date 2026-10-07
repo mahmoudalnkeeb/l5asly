@@ -11,7 +11,7 @@ import {
   type SummaryJob,
   type SummaryListItem,
   type SummaryOptions,
-} from "@l5sly/contracts";
+} from "@l5asly/contracts";
 
 const errorResponseSchema = z.object({ error: apiErrorSchema });
 const jobResponseSchema = z.object({ data: summaryJobSchema });

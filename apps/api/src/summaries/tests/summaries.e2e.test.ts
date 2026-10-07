@@ -15,7 +15,7 @@ import {
   precheckResultSchema,
   summaryJobSchema,
   summaryListItemSchema,
-} from "@l5sly/contracts";
+} from "@l5asly/contracts";
 
 import { AppModule } from "../../app.module.js";
 import { configureApp } from "../../app.setup.js";
@@ -61,7 +61,7 @@ let repository: SummaryRepository;
 let testDirectory: string;
 
 beforeAll(async () => {
-  testDirectory = await mkdtemp(path.join(tmpdir(), "l5sly-api-"));
+  testDirectory = await mkdtemp(path.join(tmpdir(), "l5asly-api-"));
   const config: AppConfig = {
     nodeEnv: "test",
     port: 4000,

@@ -32,7 +32,7 @@ import {
   type SummaryJob,
   type SummaryOptions,
   type ViewerProfile,
-} from "@l5sly/contracts";
+} from "@l5asly/contracts";
 import {
   Composer,
   ComposerCounter,

@@ -17,7 +17,7 @@ import type {
   TimelineWindow,
   VerdictSignals,
   WatchVerdict,
-} from "@l5sly/contracts";
+} from "@l5asly/contracts";
 import { getLeadCardShadow } from "@/components/material-theme";
 import {
   calculateFocusSeconds,

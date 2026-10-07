@@ -1,4 +1,4 @@
-import type { TranscriptSegment } from "@l5sly/contracts";
+import type { TranscriptSegment } from "@l5asly/contracts";
 
 const MAX_COMBINED_CHARACTERS = 260;
 const MAX_COMBINED_DURATION_SECONDS = 22;

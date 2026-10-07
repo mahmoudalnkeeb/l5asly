@@ -1,6 +1,6 @@
 import { Box, Divider, Typography } from "@mui/material";
 
-import type { SummaryNote } from "@l5sly/contracts";
+import type { SummaryNote } from "@l5asly/contracts";
 import { getContentProps } from "./format";
 
 export function NotesPanel({ notes }: { notes: SummaryNote[] }) {

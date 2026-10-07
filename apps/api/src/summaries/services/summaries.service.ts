@@ -10,7 +10,7 @@ import type {
   SummaryJob,
   SummaryListItem,
   SummaryOptions,
-} from "@l5sly/contracts";
+} from "@l5asly/contracts";
 
 import { AppError, NotFoundError } from "../../common/errors.js";
 import { SummaryQueue } from "../jobs/summary-queue.js";

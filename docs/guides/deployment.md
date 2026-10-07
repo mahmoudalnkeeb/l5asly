@@ -17,6 +17,20 @@ Open `http://localhost:8080`. Compose runs three containers:
 
 Provider keys and `PROVIDER_MODE` come from `.env`. Compose overrides the settings that differ inside a container, such as `REDIS_URL` and `DATABASE_PATH`. See [Configuration](../reference/configuration.md) for every variable.
 
+## Upgrading from `l5sly.db`
+
+Earlier versions named the database `l5sly.db`. The default is now `l5asly.db`, so an existing deployment starts with an empty library until you rename it. Stop the API first, and rename the `-wal` and `-shm` files along with the database, because they can hold writes that aren't in the main file yet. With Compose:
+
+```bash
+docker compose stop api
+```
+
+```bash
+docker compose run --rm --no-deps api sh -c 'for file in data/l5sly.db*; do mv "$file" "data/l5asly.db${file#data/l5sly.db}"; done'
+```
+
+Without Docker, rename the same files in your data directory, or set `DATABASE_PATH` to the old name.
+
 ## Running without Docker
 
 - Use a Redis server with `maxmemory-policy noeviction`. BullMQ requires it.

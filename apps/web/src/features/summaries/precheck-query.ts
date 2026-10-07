@@ -1,4 +1,4 @@
-import type { SummaryLanguage } from "@l5sly/contracts";
+import type { SummaryLanguage } from "@l5asly/contracts";
 
 interface PrecheckKeyInput {
   url: string;

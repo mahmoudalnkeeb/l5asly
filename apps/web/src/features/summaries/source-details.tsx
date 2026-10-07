@@ -6,7 +6,7 @@ import UploadFileOutlined from "@mui/icons-material/UploadFileOutlined";
 import YouTube from "@mui/icons-material/YouTube";
 import type { ReactNode } from "react";
 
-import type { SourceType, SummarySource } from "@l5sly/contracts";
+import type { SourceType, SummarySource } from "@l5asly/contracts";
 import { getContentProps } from "./format";
 
 export const sourceTypeLabels: Record<SourceType, string> = {

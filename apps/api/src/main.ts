@@ -19,5 +19,5 @@ app
   .get(Logger)
   .log(
     { port: config.port, providerMode: config.providerMode },
-    "l5sly API is listening",
+    "l5asly API is listening",
   );

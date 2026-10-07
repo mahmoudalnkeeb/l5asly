@@ -1,7 +1,7 @@
 import { HttpClient } from "@nestjs/http-client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { summaryResultSchema } from "@l5sly/contracts";
+import { summaryResultSchema } from "@l5asly/contracts";
 
 import type { TranscriptionResult } from "../../provider-contracts.js";
 import {

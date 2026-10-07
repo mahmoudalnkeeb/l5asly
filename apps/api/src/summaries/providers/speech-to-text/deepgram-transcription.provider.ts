@@ -3,7 +3,7 @@ import { openAsBlob } from "node:fs";
 import type { HttpClient, HttpRequestBody } from "@nestjs/http-client";
 import { z } from "zod";
 
-import type { SummaryLanguage, TranscriptSegment } from "@l5sly/contracts";
+import type { SummaryLanguage, TranscriptSegment } from "@l5asly/contracts";
 
 import { ProviderError } from "../../../common/errors.js";
 import { toProviderError } from "../shared/http-provider-errors.js";

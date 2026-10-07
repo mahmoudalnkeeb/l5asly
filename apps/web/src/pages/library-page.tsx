@@ -23,7 +23,7 @@ import VideoLibraryOutlined from "@mui/icons-material/VideoLibraryOutlined";
 import { useDeferredValue, useId, useState } from "react";
 import { Link } from "react-router-dom";
 
-import type { SummaryListItem } from "@l5sly/contracts";
+import type { SummaryListItem } from "@l5asly/contracts";
 import {
   Composer,
   ComposerLine,

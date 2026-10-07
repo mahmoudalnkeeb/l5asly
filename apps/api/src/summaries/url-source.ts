@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { isYouTubeUrl, type UrlSourceType } from "@l5sly/contracts";
+import { isYouTubeUrl, type UrlSourceType } from "@l5asly/contracts";
 
 // Shown until the downloader reports the real video title.
 export const YOUTUBE_PLACEHOLDER_NAME = "YouTube video";

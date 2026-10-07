@@ -12,7 +12,7 @@ import {
 } from "@mui/material";
 import { useId } from "react";
 
-import type { SummaryResult } from "@l5sly/contracts";
+import type { SummaryResult } from "@l5asly/contracts";
 import { formatTimestamp, getContentProps } from "./format";
 
 interface SummaryPanelProps {

@@ -13,7 +13,7 @@ flowchart LR
     service["SummariesService"]
     worker["SummaryJobsProcessor<br/>BullMQ worker"]
     pipeline["SummaryPipeline"]
-    db[("Turso database<br/>data/l5sly.db")]
+    db[("Turso database<br/>data/l5asly.db")]
     files[("Uploads and temp media<br/>data/uploads")]
   end
 

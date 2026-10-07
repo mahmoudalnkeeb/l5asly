@@ -12,7 +12,7 @@ The API reads its configuration from environment variables once, at startup, in 
 | `PORT` | `4000` | HTTP port |
 | `LOG_LEVEL` | `info` | `fatal`, `error`, `warn`, `info`, `debug`, `trace`, or `silent` |
 | `CLIENT_ORIGIN` | `http://localhost:5173` | Allowed CORS origin |
-| `DATABASE_PATH` | `./data/l5sly.db` | Turso database file. `:memory:` is used in tests |
+| `DATABASE_PATH` | `./data/l5asly.db` | Turso database file. `:memory:` is used in tests |
 | `REDIS_URL` | `redis://localhost:6379` | BullMQ connection. Redis must use `maxmemory-policy noeviction` |
 | `UPLOAD_DIR` | `./data/uploads` | Uploads and temporary media. Created when missing |
 | `MAX_UPLOAD_MB` | `1024` | Largest accepted upload |

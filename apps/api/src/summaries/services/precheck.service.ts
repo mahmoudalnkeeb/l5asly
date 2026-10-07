@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 
-import type { PrecheckRequest, PrecheckResult } from "@l5sly/contracts";
+import type { PrecheckRequest, PrecheckResult } from "@l5asly/contracts";
 
 import {
   InsightProvider,

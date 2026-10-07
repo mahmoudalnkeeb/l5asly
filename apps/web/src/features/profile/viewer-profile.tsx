@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { viewerProfileSchema, type ViewerProfile } from "@l5sly/contracts";
+import { viewerProfileSchema, type ViewerProfile } from "@l5asly/contracts";
 
 const STORAGE_KEY = "l5asly-viewer-profile";
 

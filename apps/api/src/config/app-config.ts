@@ -23,7 +23,7 @@ const environmentSchema = z
       .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
       .default("info"),
     CLIENT_ORIGIN: z.url().default("http://localhost:5173"),
-    DATABASE_PATH: z.string().min(1).default("./data/l5sly.db"),
+    DATABASE_PATH: z.string().min(1).default("./data/l5asly.db"),
     REDIS_URL: z.url().default("redis://localhost:6379"),
     UPLOAD_DIR: z.string().min(1).default("./data/uploads"),
     MAX_UPLOAD_MB: z.coerce.number().int().positive().default(1024),

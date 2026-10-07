@@ -9,7 +9,7 @@ import type {
   WatchVerdict,
   ViewerProfile,
   PersonalizedGuidance,
-} from "@l5sly/contracts";
+} from "@l5asly/contracts";
 
 export type MediaInput =
   | {

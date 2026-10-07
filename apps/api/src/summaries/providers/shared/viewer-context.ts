@@ -1,4 +1,4 @@
-import type { ViewerProfile } from "@l5sly/contracts";
+import type { ViewerProfile } from "@l5asly/contracts";
 
 export function formatViewerContext(input: {
   viewerProfile?: ViewerProfile;
