@@ -23,6 +23,7 @@ If you are new to the codebase, read these in order. Together they take about 30
 - [Backend conventions](guides/backend-conventions.md): how NestJS is used in the API (modules, pipes, interceptors, errors, logging).
 - [Frontend](guides/frontend.md): the React app's structure, data fetching, and API client.
 - [Testing](guides/testing.md): what to test, where tests live, and how to run them.
+- [Deployment](guides/deployment.md): running the app with Docker Compose or on your own host.
 
 ## Reference
 
