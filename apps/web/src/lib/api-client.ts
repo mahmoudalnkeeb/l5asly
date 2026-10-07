@@ -44,6 +44,8 @@ async function request(path: string, init?: RequestInit): Promise<unknown> {
   try {
     response = await fetch(path, init);
   } catch (error) {
+    // A cancelled query is not a network failure; let the caller see the abort.
+    if (init?.signal?.aborted) throw error;
     throw new ApiClientError({
       code: "NETWORK_ERROR",
       message:
@@ -130,13 +132,21 @@ export async function createUploadSummary(input: {
   return parseResponse(jobResponseSchema, body).data;
 }
 
-export async function getSummary(summaryId: string): Promise<SummaryJob> {
-  const body = await request(`/api/summaries/${encodeURIComponent(summaryId)}`);
+export async function getSummary(
+  summaryId: string,
+  signal?: AbortSignal,
+): Promise<SummaryJob> {
+  const body = await request(
+    `/api/summaries/${encodeURIComponent(summaryId)}`,
+    { signal },
+  );
   return parseResponse(jobResponseSchema, body).data;
 }
 
-export async function listSummaries(): Promise<SummaryListItem[]> {
-  const body = await request("/api/summaries");
+export async function listSummaries(
+  signal?: AbortSignal,
+): Promise<SummaryListItem[]> {
+  const body = await request("/api/summaries", { signal });
   return parseResponse(summaryListResponseSchema, body).data;
 }
 

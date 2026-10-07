@@ -1,9 +1,20 @@
 import { Alert, Snackbar } from "@mui/material";
-import { createContext, useContext, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useState,
+  type ReactNode,
+} from "react";
 
 interface Notification {
   message: string;
   severity: "success" | "error";
+}
+
+// The id restarts the snackbar timer when the same message is shown twice.
+interface ShownNotification extends Notification {
+  id: number;
 }
 
 const NotificationContext = createContext<(notification: Notification) => void>(
@@ -11,19 +22,31 @@ const NotificationContext = createContext<(notification: Notification) => void>(
 );
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
-  const [notification, setNotification] = useState<Notification | null>(null);
+  // The last notification stays in state while the snackbar fades out, so the
+  // closing alert keeps its colour and text.
+  const [notification, setNotification] = useState<ShownNotification | null>(
+    null,
+  );
+  const [isOpen, setIsOpen] = useState(false);
+
+  const notify = useCallback((next: Notification) => {
+    setNotification((previous) => ({ ...next, id: (previous?.id ?? 0) + 1 }));
+    setIsOpen(true);
+  }, []);
+
   return (
-    <NotificationContext.Provider value={setNotification}>
+    <NotificationContext.Provider value={notify}>
       {children}
       <Snackbar
-        open={notification !== null}
+        key={notification?.id}
+        open={isOpen}
         autoHideDuration={5000}
-        onClose={() => setNotification(null)}
+        onClose={() => setIsOpen(false)}
       >
         <Alert
           severity={notification?.severity ?? "success"}
           variant="filled"
-          onClose={() => setNotification(null)}
+          onClose={() => setIsOpen(false)}
         >
           {notification?.message}
         </Alert>

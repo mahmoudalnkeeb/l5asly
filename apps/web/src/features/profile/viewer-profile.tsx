@@ -1,7 +1,9 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
   type ReactNode,
 } from "react";
@@ -58,21 +60,30 @@ export function ViewerProfileProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("storage", syncProfile);
   }, []);
 
-  function saveProfile(profile: ViewerProfile): void {
+  const saveProfile = useCallback((profile: ViewerProfile): void => {
     const validated = viewerProfileSchema.parse(profile);
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(validated));
     setState({ profile: validated, storageError: null });
-  }
+  }, []);
 
-  function clearProfile(): void {
+  const clearProfile = useCallback((): void => {
     window.localStorage.removeItem(STORAGE_KEY);
     setState({ profile: null, storageError: null });
-  }
+  }, []);
+
+  // Stable value so consumers only re-render when the profile itself changes.
+  const value = useMemo<ViewerProfileContextValue>(
+    () => ({
+      profile: state.profile,
+      storageError: state.storageError,
+      saveProfile,
+      clearProfile,
+    }),
+    [state, saveProfile, clearProfile],
+  );
 
   return (
-    <ViewerProfileContext.Provider
-      value={{ ...state, saveProfile, clearProfile }}
-    >
+    <ViewerProfileContext.Provider value={value}>
       {children}
     </ViewerProfileContext.Provider>
   );

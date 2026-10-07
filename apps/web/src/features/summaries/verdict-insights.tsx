@@ -11,7 +11,7 @@ import { alpha } from "@mui/material/styles";
 import ArticleOutlined from "@mui/icons-material/ArticleOutlined";
 import FastForwardOutlined from "@mui/icons-material/FastForwardOutlined";
 import PlayCircleOutlined from "@mui/icons-material/PlayCircleOutlined";
-import type { ReactElement } from "react";
+import { useId, type ReactElement } from "react";
 
 import type {
   TimelineWindow,
@@ -207,6 +207,7 @@ export function RelevanceTimeline({
   durationSeconds: number;
   onSelectTime: (seconds: number) => void;
 }) {
+  const titleId = useId();
   const focusSeconds = calculateFocusSeconds(timeline);
   const totalSeconds = Math.max(
     durationSeconds,
@@ -214,8 +215,8 @@ export function RelevanceTimeline({
   );
 
   return (
-    <Box role="group" aria-labelledby="timeline-title" sx={{ minWidth: 0 }}>
-      <Typography variant="h3" id="timeline-title">
+    <Box role="group" aria-labelledby={titleId} sx={{ minWidth: 0 }}>
+      <Typography variant="h3" id={titleId}>
         Where the value is
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>

@@ -13,6 +13,8 @@ import Replay from "@mui/icons-material/Replay";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import type { JobStep, SummaryJob } from "@l5sly/contracts";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { findStepForProgress } from "./job-steps";
 
 const retryLabels: Record<JobStep, string> = {
   media: "Retry processing",
@@ -39,15 +41,10 @@ export function FailedSummaryState({
   onDelete: () => void;
 }) {
   const [file, setFile] = useState<File>();
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const isBusy = isRetrying || isDeleting;
   const requiresUpload = job.retryInfo?.requiresUpload ?? false;
-  const failedStep =
-    job.failedStep ??
-    (job.progress >= 68
-      ? "summary"
-      : job.progress >= 34
-        ? "transcription"
-        : "media");
+  const failedStep = job.failedStep ?? findStepForProgress(job.progress);
   const retryLabel = retryLabels[job.retryInfo?.fromStep ?? "media"];
 
   return (
@@ -133,7 +130,7 @@ export function FailedSummaryState({
               <DeleteOutlined />
             )
           }
-          onClick={onDelete}
+          onClick={() => setIsConfirmingDelete(true)}
           disabled={isBusy}
         >
           {isDeleting ? "Deleting…" : "Delete job"}
@@ -150,6 +147,17 @@ export function FailedSummaryState({
         Retry uses this job’s original question and profile. Delete removes the
         job, checkpoints, and retained media.
       </Typography>
+      <ConfirmDialog
+        open={isConfirmingDelete}
+        title="Delete this job?"
+        description="The job, its saved checkpoints, and any retained media are removed permanently. This cannot be undone."
+        confirmLabel="Delete permanently"
+        pendingLabel="Deleting…"
+        cancelLabel="Keep job"
+        isPending={isDeleting}
+        onConfirm={onDelete}
+        onClose={() => setIsConfirmingDelete(false)}
+      />
     </Container>
   );
 }

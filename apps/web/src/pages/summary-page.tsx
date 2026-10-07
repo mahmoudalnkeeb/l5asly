@@ -26,29 +26,38 @@ import {
 
 export function SummaryPage() {
   const { summaryId } = useParams();
+
+  if (!summaryId) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <SummaryJobView summaryId={summaryId} />;
+}
+
+function SummaryJobView({ summaryId }: { summaryId: string }) {
   const queryClient = useQueryClient();
   const notify = useNotification();
   const navigate = useNavigate();
   const summaryQuery = useQuery({
     queryKey: ["summary", summaryId],
-    queryFn: () => getSummary(summaryId ?? ""),
-    enabled: Boolean(summaryId),
+    queryFn: ({ signal }) => getSummary(summaryId, signal),
     refetchInterval: (query) => {
       const status = query.state.data?.status;
       return status === "queued" || status === "processing" ? 900 : false;
     },
   });
   const cancelMutation = useMutation({
-    mutationFn: () => cancelSummary(summaryId ?? ""),
+    mutationFn: () => cancelSummary(summaryId),
     onSuccess: (job) => {
       queryClient.setQueryData(["summary", summaryId], job);
+      void queryClient.invalidateQueries({ queryKey: ["summaries"] });
       notify({ severity: "success", message: "Processing cancelled." });
     },
     onError: (error) =>
       notify({ severity: "error", message: getErrorMessage(error) }),
   });
   const retryMutation = useMutation({
-    mutationFn: (file?: File) => retrySummary(summaryId ?? "", file),
+    mutationFn: (file?: File) => retrySummary(summaryId, file),
     onSuccess: (job) => {
       queryClient.setQueryData(["summary", summaryId], job);
       void queryClient.invalidateQueries({ queryKey: ["summaries"] });
@@ -61,7 +70,7 @@ export function SummaryPage() {
       notify({ severity: "error", message: getErrorMessage(error) }),
   });
   const deleteMutation = useMutation({
-    mutationFn: () => deleteSummary(summaryId ?? ""),
+    mutationFn: () => deleteSummary(summaryId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["summaries"] });
       navigate("/library", { replace: true });
@@ -77,10 +86,6 @@ export function SummaryPage() {
     onError: (error) =>
       notify({ severity: "error", message: getErrorMessage(error) }),
   });
-
-  if (!summaryId) {
-    return <Navigate to="/" replace />;
-  }
 
   if (summaryQuery.isPending) {
     return <ProcessingStateSkeleton />;

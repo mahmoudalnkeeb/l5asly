@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Accordion,
   AccordionDetails,
@@ -8,7 +8,6 @@ import {
   Box,
   Button,
   CircularProgress,
-  FormHelperText,
   MenuItem,
   Paper,
   Stack,
@@ -21,7 +20,7 @@ import ExpandMore from "@mui/icons-material/ExpandMore";
 import LinkOutlined from "@mui/icons-material/LinkOutlined";
 import LockOutlined from "@mui/icons-material/LockOutlined";
 import UploadFileOutlined from "@mui/icons-material/UploadFileOutlined";
-import { useId, useState } from "react";
+import { useId } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
 import { z } from "zod";
@@ -43,6 +42,21 @@ import {
   precheckVideo,
 } from "@/lib/api-client";
 import { PrecheckResult } from "./precheck-result";
+import { UploadDropzone } from "./upload-dropzone";
+
+// Matches the API's default MAX_UPLOAD_MB, so oversized files are rejected
+// before a long upload rather than after it.
+const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024;
+
+// The file picker filters by type, but drag and drop does not. Some systems
+// report no type for valid containers such as .mkv; the server checks those.
+function isMediaFile(file: File): boolean {
+  return (
+    file.type === "" ||
+    file.type.startsWith("video/") ||
+    file.type.startsWith("audio/")
+  );
+}
 
 const formSchema = z
   .object({
@@ -55,12 +69,21 @@ const formSchema = z
     file: z.instanceof(File).optional(),
   })
   .superRefine((values, context) => {
-    if (values.sourceType === "upload" && !values.file) {
-      context.addIssue({
-        code: "custom",
-        path: ["file"],
-        message: "Choose a video or audio file.",
-      });
+    if (values.sourceType === "upload") {
+      if (!values.file || !isMediaFile(values.file)) {
+        context.addIssue({
+          code: "custom",
+          path: ["file"],
+          message: "Choose a video or audio file.",
+        });
+      } else if (values.file.size > MAX_UPLOAD_BYTES) {
+        context.addIssue({
+          code: "custom",
+          path: ["file"],
+          message:
+            "This file is larger than 1 GB. Choose a smaller file or paste a link instead.",
+        });
+      }
     }
     if (values.sourceType === "url") {
       const parsedUrl = z.url().safeParse(values.url);
@@ -96,15 +119,14 @@ const depthDescriptions = {
 
 export function SummaryForm() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const notify = useNotification();
   const { profile, storageError } = useViewerProfile();
   const viewerProfile =
     profile && Object.values(profile).some((value) => value.trim())
       ? profile
       : undefined;
-  const fileInputId = useId();
-  const [fileName, setFileName] = useState<string>();
-  const [isDragging, setIsDragging] = useState(false);
+  const advancedOptionsId = useId();
   const form = useForm<SummaryFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -120,6 +142,7 @@ export function SummaryForm() {
   const expectation = form.watch("expectation") ?? "";
   const depth = form.watch("depth");
   const url = form.watch("url")?.trim() ?? "";
+  const fileName = form.watch("file")?.name;
   const canPrecheck = sourceType === "url" && isYouTubeUrl(url);
 
   const createSummary = useMutation({
@@ -145,7 +168,11 @@ export function SummaryForm() {
         expectation: values.expectation,
       });
     },
-    onSuccess: (job) => navigate(`/summaries/${job.id}`),
+    onSuccess: (job) => {
+      // The library can be cached for a few seconds; make sure it shows this job.
+      void queryClient.invalidateQueries({ queryKey: ["summaries"] });
+      navigate(`/summaries/${job.id}`);
+    },
     onError: (error) =>
       notify({ severity: "error", message: getErrorMessage(error) }),
   });
@@ -171,7 +198,6 @@ export function SummaryForm() {
 
   function handleFile(file: File | undefined): void {
     form.setValue("file", file, { shouldValidate: true });
-    setFileName(file?.name);
   }
 
   function trySample(): void {
@@ -246,82 +272,11 @@ export function SummaryForm() {
             </ToggleButtonGroup>
 
             {sourceType === "upload" ? (
-              <Box>
-                <Box
-                  component="label"
-                  htmlFor={fileInputId}
-                  onDragOver={(event) => {
-                    event.preventDefault();
-                    setIsDragging(true);
-                  }}
-                  onDragLeave={() => setIsDragging(false)}
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    setIsDragging(false);
-                    handleFile(event.dataTransfer.files[0]);
-                  }}
-                  sx={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: "100%",
-                    minHeight: { xs: 184, md: 200 },
-                    gap: 1,
-                    p: 3,
-                    border: "1px dashed",
-                    borderColor: form.formState.errors.file
-                      ? "error.main"
-                      : "primary.main",
-                    borderRadius: 2,
-                    bgcolor: isDragging ? "action.selected" : "action.hover",
-                    textAlign: "center",
-                    cursor: "pointer",
-                    "&:hover": { bgcolor: "action.selected" },
-                    "&:focus-within": {
-                      outline: "2px solid",
-                      outlineColor: "primary.main",
-                      outlineOffset: 3,
-                    },
-                  }}
-                >
-                  <UploadFileOutlined
-                    sx={{ fontSize: 32, color: "primary.main", mb: 1 }}
-                  />
-                  <Typography
-                    sx={{
-                      fontWeight: 600,
-                      maxWidth: "100%",
-                      overflowWrap: "anywhere",
-                    }}
-                  >
-                    {fileName ?? "Drop your video here"}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {fileName ? "Choose another file" : "or choose a file"}
-                  </Typography>
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    sx={{ fontFamily: "var(--font-mono)" }}
-                  >
-                    MP4, MOV, WebM · Up to 1 GB
-                  </Typography>
-                  <input
-                    id={fileInputId}
-                    aria-label="Choose a video or audio file"
-                    className="sr-only"
-                    type="file"
-                    accept="video/*,audio/*"
-                    onChange={(event) => handleFile(event.target.files?.[0])}
-                  />
-                </Box>
-                {form.formState.errors.file ? (
-                  <FormHelperText error>
-                    {form.formState.errors.file.message}
-                  </FormHelperText>
-                ) : null}
-              </Box>
+              <UploadDropzone
+                fileName={fileName}
+                errorMessage={form.formState.errors.file?.message}
+                onFileChange={handleFile}
+              />
             ) : (
               <Controller
                 control={form.control}
@@ -331,7 +286,9 @@ export function SummaryForm() {
                     {...field}
                     label="Video URL"
                     type="url"
-                    placeholder="https://youtube.com/watch?v=..."
+                    placeholder="https://youtube.com/watch?v=…"
+                    autoComplete="off"
+                    slotProps={{ htmlInput: { spellCheck: false } }}
                     error={Boolean(fieldState.error)}
                     helperText={
                       fieldState.error?.message ??
@@ -451,14 +408,14 @@ export function SummaryForm() {
             <Accordion>
               <AccordionSummary
                 expandIcon={<ExpandMore />}
-                aria-controls="advanced-options-content"
-                id="advanced-options-heading"
+                aria-controls={`${advancedOptionsId}-content`}
+                id={`${advancedOptionsId}-heading`}
               >
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
                   Advanced options
                 </Typography>
               </AccordionSummary>
-              <AccordionDetails id="advanced-options-content">
+              <AccordionDetails id={`${advancedOptionsId}-content`}>
                 <Box
                   sx={{
                     display: "grid",

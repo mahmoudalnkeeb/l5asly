@@ -9,26 +9,41 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link } from "react-router-dom";
 
 import { viewerProfileSchema, type ViewerProfile } from "@l5sly/contracts";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { useNotification } from "@/components/notifications";
 import { useViewerProfile } from "@/features/profile/viewer-profile";
+
+const EMPTY_PROFILE: ViewerProfile = {
+  background: "",
+  knowledge: "",
+  goals: "",
+  preferences: "",
+};
 
 export function ProfilePage() {
   const { profile, storageError, saveProfile, clearProfile } =
     useViewerProfile();
   const notify = useNotification();
+  const [isConfirmingClear, setIsConfirmingClear] = useState(false);
   const form = useForm<ViewerProfile>({
     resolver: zodResolver(viewerProfileSchema),
-    defaultValues: profile ?? {
-      background: "",
-      knowledge: "",
-      goals: "",
-      preferences: "",
-    },
+    defaultValues: profile ?? EMPTY_PROFILE,
   });
+  const { reset } = form;
+  const { isDirty } = form.formState;
+
+  // Show a profile saved from another tab, unless that would discard edits
+  // the user is making here.
+  useEffect(() => {
+    if (!isDirty) {
+      reset(profile ?? EMPTY_PROFILE);
+    }
+  }, [profile, isDirty, reset]);
 
   function handleSave(values: ViewerProfile): void {
     try {
@@ -48,9 +63,10 @@ export function ProfilePage() {
   }
 
   function handleClear(): void {
+    setIsConfirmingClear(false);
     try {
       clearProfile();
-      form.reset({ background: "", knowledge: "", goals: "", preferences: "" });
+      form.reset(EMPTY_PROFILE);
       notify({
         severity: "success",
         message: "Profile removed. New summaries will use only your question.",
@@ -170,13 +186,28 @@ export function ProfilePage() {
               <Button component={Link} to="/">
                 Summarize a video
               </Button>
-              <Button color="error" onClick={handleClear} disabled={!profile}>
+              <Button
+                color="error"
+                onClick={() => setIsConfirmingClear(true)}
+                disabled={!profile}
+              >
                 Clear profile
               </Button>
             </Stack>
           </Stack>
         </Box>
       </Paper>
+      <ConfirmDialog
+        open={isConfirmingClear}
+        title="Clear your profile?"
+        description="Your saved background, knowledge, goals and preferences are removed from this browser. Existing summaries keep the profile they used."
+        confirmLabel="Clear profile"
+        pendingLabel="Clearing…"
+        cancelLabel="Keep profile"
+        isPending={false}
+        onConfirm={handleClear}
+        onClose={() => setIsConfirmingClear(false)}
+      />
     </Container>
   );
 }

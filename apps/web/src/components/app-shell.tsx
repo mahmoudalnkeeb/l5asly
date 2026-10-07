@@ -15,15 +15,20 @@ import DarkModeOutlined from "@mui/icons-material/DarkModeOutlined";
 import LightModeOutlined from "@mui/icons-material/LightModeOutlined";
 import SettingsBrightnessOutlined from "@mui/icons-material/SettingsBrightnessOutlined";
 import { useState, type ReactNode } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import { LogoMark } from "@/components/logo";
 import { useTheme, type Theme } from "@/components/theme-provider";
 
+const themeIcons: Record<Theme, ReactNode> = {
+  light: <LightModeOutlined />,
+  dark: <DarkModeOutlined />,
+  system: <SettingsBrightnessOutlined />,
+};
+
 export function AppShell({ children }: { children: ReactNode }) {
   const { theme, setTheme } = useTheme();
   const location = useLocation();
-  const navigate = useNavigate();
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   let activePage = "/library";
   if (location.pathname === "/") activePage = "/";
@@ -85,9 +90,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                 L5asly
               </Typography>
             </Box>
+            {/* Each tab is a real link, so middle-click and "open in new tab" work. */}
             <Tabs
               value={activePage}
-              onChange={(_, route: string) => navigate(route)}
               aria-label="Primary navigation"
               sx={{
                 order: { xs: 3, sm: 0 },
@@ -95,9 +100,19 @@ export function AppShell({ children }: { children: ReactNode }) {
                 flexGrow: { xs: 0, sm: 1 },
               }}
             >
-              <Tab value="/" label="Summarize" />
-              <Tab value="/library" label="Library" />
-              <Tab value="/profile" label="Profile" />
+              <Tab value="/" label="Summarize" component={Link} to="/" />
+              <Tab
+                value="/library"
+                label="Library"
+                component={Link}
+                to="/library"
+              />
+              <Tab
+                value="/profile"
+                label="Profile"
+                component={Link}
+                to="/profile"
+              />
             </Tabs>
             <IconButton
               aria-label="Choose color theme"
@@ -107,7 +122,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               onClick={(event) => setMenuAnchor(event.currentTarget)}
               sx={{ ml: "auto" }}
             >
-              {theme === "dark" ? <DarkModeOutlined /> : <LightModeOutlined />}
+              {themeIcons[theme]}
             </IconButton>
             <Menu
               id="theme-menu"

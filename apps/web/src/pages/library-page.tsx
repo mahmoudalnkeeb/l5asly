@@ -35,7 +35,7 @@ const statusLabels: Record<SummaryListItem["status"], string> = {
 export function LibraryPage() {
   const summariesQuery = useQuery({
     queryKey: ["summaries"],
-    queryFn: listSummaries,
+    queryFn: ({ signal }) => listSummaries(signal),
     refetchInterval: (query) =>
       query.state.data?.some(
         (item) => item.status === "queued" || item.status === "processing",
@@ -170,8 +170,9 @@ function SummaryRow({ summary }: { summary: SummaryListItem }) {
           {summary.status !== "completed" ? ` · ${summary.stage}` : ""}
         </Typography>
       </Box>
+      {/* Icons are aria-hidden, so the action is spelled out for screen readers. */}
+      <span className="sr-only">{actionLabel}</span>
       <ArrowForward
-        aria-label={actionLabel}
         fontSize="small"
         sx={{ color: "primary.main", flexShrink: 0 }}
       />

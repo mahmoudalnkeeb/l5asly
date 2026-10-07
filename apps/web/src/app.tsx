@@ -1,7 +1,8 @@
 import { lazy, Suspense } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { AppShell } from "@/components/app-shell";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { Container, Skeleton } from "@mui/material";
 
 const CreateSummaryPage = lazy(async () => {
@@ -25,25 +26,29 @@ const ProfilePage = lazy(async () => {
 });
 
 export function App() {
+  const location = useLocation();
+
   return (
     <AppShell>
-      <Suspense
-        fallback={
-          <Container maxWidth="lg" sx={{ py: 5 }}>
-            <Skeleton height={56} width="75%" />
-            <Skeleton height={28} width="50%" />
-            <Skeleton variant="rounded" height={360} sx={{ mt: 4 }} />
-          </Container>
-        }
-      >
-        <Routes>
-          <Route path="/" element={<CreateSummaryPage />} />
-          <Route path="/library" element={<LibraryPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/summaries/:summaryId" element={<SummaryPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Suspense>
+      <ErrorBoundary resetKey={location.pathname}>
+        <Suspense
+          fallback={
+            <Container maxWidth="lg" sx={{ py: 5 }}>
+              <Skeleton height={56} width="75%" />
+              <Skeleton height={28} width="50%" />
+              <Skeleton variant="rounded" height={360} sx={{ mt: 4 }} />
+            </Container>
+          }
+        >
+          <Routes>
+            <Route path="/" element={<CreateSummaryPage />} />
+            <Route path="/library" element={<LibraryPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/summaries/:summaryId" element={<SummaryPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
+      </ErrorBoundary>
     </AppShell>
   );
 }

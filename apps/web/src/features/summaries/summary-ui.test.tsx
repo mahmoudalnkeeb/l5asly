@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -169,9 +170,16 @@ describe("Summary workflow", () => {
     cleanup();
     renderUi(<ProfilePage />);
     fireEvent.click(screen.getByRole("button", { name: "Clear profile" }));
+    expect(localStorage.getItem("l5asly-viewer-profile")).not.toBeNull();
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Clear profile",
+      }),
+    );
     expect(localStorage.getItem("l5asly-viewer-profile")).toBeNull();
+    // The rest of the page is hidden from assistive tech until the dialog closes.
     expect(
-      screen.getByRole("textbox", { name: "Role or background" }),
+      await screen.findByRole("textbox", { name: "Role or background" }),
     ).toHaveValue("");
   });
 
@@ -286,6 +294,35 @@ describe("Summary workflow", () => {
       target: { value: "https://youtu.be/another" },
     });
     expect(screen.queryByText("Likely skip")).not.toBeInTheDocument();
+  });
+
+  it("rejects dropped files that are not media or are over the upload limit", async () => {
+    const fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    renderUi(<SummaryForm />);
+    const input = screen.getByLabelText("Choose a video or audio file");
+
+    fireEvent.change(input, {
+      target: {
+        files: [new File(["%PDF"], "notes.pdf", { type: "application/pdf" })],
+      },
+    });
+    expect(
+      await screen.findByText("Choose a video or audio file."),
+    ).toBeInTheDocument();
+
+    const largeVideo = new File(["video"], "long.mp4", { type: "video/mp4" });
+    Object.defineProperty(largeVideo, "size", { value: 2 * 1024 ** 3 });
+    fireEvent.change(input, { target: { files: [largeVideo] } });
+    expect(
+      await screen.findByText(/This file is larger than 1 GB/),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Create summary" }));
+    await waitFor(() =>
+      expect(screen.getByText(/This file is larger than 1 GB/)).toBeVisible(),
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("submits the selected file as multipart data", async () => {
@@ -420,6 +457,13 @@ describe("job recovery and loading", () => {
       [`/summaries/${queuedJob.id}`],
     );
     fireEvent.click(await screen.findByRole("button", { name: "Delete job" }));
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      `/api/summaries/${queuedJob.id}`,
+      { method: "DELETE" },
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Delete permanently" }),
+    );
     expect(await screen.findByText("Saved summaries")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(`/api/summaries/${queuedJob.id}`, {
       method: "DELETE",
@@ -618,6 +662,64 @@ describe("Summary result", () => {
     expect(document.getElementById("segment-0")).toHaveFocus();
   });
 
+  it("scrolls again when the same timeline part is chosen twice", () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    renderResult({
+      ...result,
+      timeline: [
+        { startSeconds: 0, endSeconds: 10, relevance: 0.2 },
+        { startSeconds: 10, endSeconds: 20, relevance: 0.9 },
+      ],
+    });
+    const timelinePart = screen.getByRole("button", {
+      name: "Jump to transcript at 0:10",
+    });
+
+    fireEvent.click(timelinePart);
+    fireEvent.click(timelinePart);
+
+    expect(scrollIntoView).toHaveBeenCalledTimes(2);
+    expect(document.getElementById("segment-1")).toHaveFocus();
+  });
+
+  it("does not jump back to an old segment when returning to the transcript tab", () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    renderResult();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Practical demonstration, jump to transcript at 0:15",
+      }),
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Notes" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Transcript" }));
+
+    expect(scrollIntoView).toHaveBeenCalledOnce();
+  });
+
+  it("opens the tab named in the URL", () => {
+    renderResult(result, "English", ["/?tab=notes"]);
+    expect(screen.getByRole("tab", { name: "Notes" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByRole("heading", { name: "Key notes" })).toBeVisible();
+  });
+
+  it("renders repeated generated titles without dropping sections", () => {
+    renderResult({
+      ...result,
+      sections: [
+        { title: "Main idea", body: "First explanation." },
+        { title: "Main idea", body: "Second explanation." },
+      ],
+    });
+    expect(screen.getByText("First explanation.")).toBeInTheDocument();
+    expect(screen.getByText("Second explanation.")).toBeInTheDocument();
+  });
+
   it("uses RTL content and list spacing for Arabic, including titles beginning with Latin names", () => {
     const arabicResult: SummaryResultData = {
       ...result,
@@ -701,11 +803,12 @@ describe("Summary result", () => {
 function renderResult(
   summary: SummaryResultData = result,
   requestedLanguage: SummaryLanguage = "English",
+  initialEntries = ["/"],
 ) {
   return render(
     <ThemeProvider defaultTheme="light">
       <NotificationProvider>
-        <MemoryRouter>
+        <MemoryRouter initialEntries={initialEntries}>
           <SummaryResult
             result={summary}
             sourceName="example.mp4"
