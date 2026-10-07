@@ -10,7 +10,7 @@ import type {
   SummaryResult,
   TimelineWindow,
   WatchVerdict,
-} from "@l5sly/contracts";
+} from "@l5asly/contracts";
 
 import { AppError } from "../../common/errors.js";
 import { MediaPreparer, type PreparedMedia } from "../media/media-preparer.js";

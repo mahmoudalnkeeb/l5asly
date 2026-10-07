@@ -9,7 +9,7 @@ import {
 } from "@mui/material";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 
-import type { SummaryJob } from "@l5sly/contracts";
+import type { SummaryJob } from "@l5asly/contracts";
 import { useNotification } from "@/components/notifications";
 import {
   ProcessingState,

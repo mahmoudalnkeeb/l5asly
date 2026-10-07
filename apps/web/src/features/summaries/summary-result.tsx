@@ -25,7 +25,7 @@ import type {
   SummaryLanguage,
   SummaryResult as SummaryResultData,
   SummarySource,
-} from "@l5sly/contracts";
+} from "@l5asly/contracts";
 import { useNotification } from "@/components/notifications";
 import {
   formatLanguageLabel,

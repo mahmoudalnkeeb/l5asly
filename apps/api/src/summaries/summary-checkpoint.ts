@@ -4,7 +4,7 @@ import {
   timelineWindowSchema,
   transcriptSegmentSchema,
   watchVerdictSchema,
-} from "@l5sly/contracts";
+} from "@l5asly/contracts";
 
 const generatedSummarySchema = summaryResultSchema.pick({
   title: true,

@@ -1,4 +1,4 @@
-import { SUMMARY_LANGUAGES, type TimelineWindow } from "@l5sly/contracts";
+import { SUMMARY_LANGUAGES, type TimelineWindow } from "@l5asly/contracts";
 
 export function formatTimestamp(totalSeconds: number): string {
   const seconds = Math.max(0, Math.floor(totalSeconds));

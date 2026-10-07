@@ -1,7 +1,7 @@
 import type { HttpClient } from "@nestjs/http-client";
 import { z } from "zod";
 
-import type { TimelineWindow, WatchVerdict } from "@l5sly/contracts";
+import type { TimelineWindow, WatchVerdict } from "@l5asly/contracts";
 
 import { ProviderError } from "../../../common/errors.js";
 import { toProviderError } from "../shared/http-provider-errors.js";

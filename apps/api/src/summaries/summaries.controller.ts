@@ -20,7 +20,7 @@ import {
   type SummaryJob,
   type SummaryListItem,
   type SummaryOptions,
-} from "@l5sly/contracts";
+} from "@l5asly/contracts";
 
 import { ZodValidationPipe } from "../common/zod-validation.pipe.js";
 import { PrecheckService } from "./services/precheck.service.js";

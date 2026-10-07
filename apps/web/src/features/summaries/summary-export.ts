@@ -1,4 +1,4 @@
-import type { SummaryResult } from "@l5sly/contracts";
+import type { SummaryResult } from "@l5asly/contracts";
 
 function guidanceLines(result: SummaryResult): string[] {
   const guidance = result.personalizedGuidance;

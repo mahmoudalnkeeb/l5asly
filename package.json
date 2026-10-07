@@ -1,17 +1,18 @@
 {
-  "name": "l5sly",
+  "name": "l5asly",
   "version": "1.0.0",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@12.4.1",
   "scripts": {
-    "predev": "pnpm --filter @l5sly/contracts build && pnpm --filter @l5sly/api build",
-    "dev": "concurrently -n api,web -c green,cyan \"pnpm --filter @l5sly/api dev\" \"pnpm --filter @l5sly/web dev\"",
-    "build": "pnpm --filter @l5sly/contracts build && pnpm --filter @l5sly/api build && pnpm --filter @l5sly/web build",
-    "typecheck": "pnpm --filter @l5sly/contracts build && pnpm --filter @l5sly/api typecheck && pnpm --filter @l5sly/web typecheck",
-    "test": "pnpm --filter @l5sly/contracts build && pnpm --filter @l5sly/api test && pnpm --filter @l5sly/web test",
+    "predev": "pnpm --filter @l5asly/contracts build && pnpm --filter @l5asly/api build",
+    "dev": "concurrently -n api,web -c green,cyan \"pnpm --filter @l5asly/api dev\" \"pnpm --filter @l5asly/web dev\"",
+    "build": "pnpm --filter @l5asly/contracts build && pnpm --filter @l5asly/api build && pnpm --filter @l5asly/web build",
+    "typecheck": "pnpm --filter @l5asly/contracts build && pnpm --filter @l5asly/api typecheck && pnpm --filter @l5asly/web typecheck",
+    "test": "pnpm --filter @l5asly/contracts build && pnpm --filter @l5asly/api test && pnpm --filter @l5asly/web test",
     "check": "pnpm typecheck && pnpm test && pnpm build",
-    "start": "pnpm --filter @l5sly/api start"
+    "start": "pnpm --filter @l5asly/api start"
   },
   "engines": {
     "node": ">=24.0.0"
@@ -20,5 +21,9 @@
     "@types/node": "^26.6.4",
     "concurrently": "^10.0.5",
     "typescript": "^7.0.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mahmoudalnkeeb/l5asly.git"
   }
 }

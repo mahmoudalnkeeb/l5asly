@@ -3,7 +3,7 @@ import type {
   RecommendedMoment,
   SummaryNote,
   SummarySection,
-} from "@l5sly/contracts";
+} from "@l5asly/contracts";
 
 import type {
   GeneratedSummary,

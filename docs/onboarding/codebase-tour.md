@@ -4,15 +4,15 @@ The repository is a pnpm workspace with three packages. This page shows where th
 
 ```text
 apps/
-  api/            @l5sly/api       NestJS 12 API and queue worker
-  web/            @l5sly/web       React 19 single-page app
+  api/            @l5asly/api       NestJS 12 API and queue worker
+  web/            @l5asly/web       React 19 single-page app
 packages/
-  contracts/      @l5sly/contracts Zod schemas and types shared by api and web
+  contracts/      @l5asly/contracts Zod schemas and types shared by api and web
 docs/             these docs
 compose.yaml      Redis for development, or the whole app (web, api, redis) in Docker
 ```
 
-Workspace packages depend on each other with `workspace:*`. The API and the web app both import `@l5sly/contracts`, which is built to `packages/contracts/dist`. The root scripts always build it first.
+Workspace packages depend on each other with `workspace:*`. The API and the web app both import `@l5asly/contracts`, which is built to `packages/contracts/dist`. The root scripts always build it first.
 
 ## `packages/contracts`: the shared language
 

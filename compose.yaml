@@ -3,8 +3,9 @@
 services:
   redis:
     image: redis:8-alpine
+    # Loopback only: Redis has no password here, and Docker's published ports bypass host firewalls.
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis-data:/data
     # BullMQ requires Redis to never evict keys.
@@ -30,7 +31,7 @@ services:
       PORT: "4000"
       REDIS_URL: redis://redis:6379
       CLIENT_ORIGIN: http://localhost:8080
-      DATABASE_PATH: ./data/l5sly.db
+      DATABASE_PATH: ./data/l5asly.db
       UPLOAD_DIR: ./data/uploads
     volumes:
       - api-data:/app/data

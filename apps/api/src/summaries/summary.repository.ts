@@ -15,7 +15,7 @@ import {
   type SummaryResult,
   type SummarySource,
   type JobStep,
-} from "@l5sly/contracts";
+} from "@l5asly/contracts";
 
 import type { Database } from "../database/database.js";
 import {

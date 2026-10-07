@@ -12,7 +12,7 @@ The API reads its configuration from environment variables once, at startup, in 
 | `PORT` | `4000` | HTTP port |
 | `LOG_LEVEL` | `info` | `fatal`, `error`, `warn`, `info`, `debug`, `trace`, or `silent` |
 | `CLIENT_ORIGIN` | `http://localhost:5173` | Allowed CORS origin |
-| `DATABASE_PATH` | `./data/l5sly.db` | Turso database file. `:memory:` is used in tests |
+| `DATABASE_PATH` | `./data/l5asly.db` | Turso database file. `:memory:` is used in tests |
 | `REDIS_URL` | `redis://localhost:6379` | BullMQ connection. Redis must use `maxmemory-policy noeviction` |
 | `UPLOAD_DIR` | `./data/uploads` | Uploads and temporary media. Created when missing |
 | `MAX_UPLOAD_MB` | `1024` | Largest accepted upload |
@@ -38,6 +38,12 @@ In `live` mode, `DEEPGRAM_API_KEY`, `LLM_API_KEY`, and `JEV_API_KEY` are require
 | `YTDLP_TIMEOUT_MS` | `900000` | 10,000 to 1,800,000 | Per download or metadata lookup |
 
 Keys are only ever read by the server. They are sent as `authorization` headers by the named HTTP clients and never logged.
+
+### Getting keys
+
+- **Deepgram:** create a key in the [Deepgram console](https://console.deepgram.com/).
+- **LLM and Jev:** both defaults point at [SovereignEG](https://sovereigneg.com/docs/quickstart). Sign up at [sovereigneg.com/signup](https://sovereigneg.com/signup) and create an API key in the dashboard. Usage is paid from prepaid credit; see [pricing](https://sovereigneg.com/pricing). Both `LLM_API_KEY` and `JEV_API_KEY` take a SovereignEG key.
+- **Another LLM provider:** `LLM_BASE_URL` accepts any OpenAI-compatible endpoint that supports strict `json_schema` structured output. Set `LLM_MODEL` to one of its models.
 
 ## Install time
 

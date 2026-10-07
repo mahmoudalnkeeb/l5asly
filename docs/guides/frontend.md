@@ -31,7 +31,7 @@ Any other path redirects to `/`.
 
 All calls go through `src/lib/api-client.ts`. Components never call `fetch` directly.
 
-- Every response is parsed with the matching schema from `@l5sly/contracts`. A response that doesn't match throws `ApiClientError` with code `INVALID_RESPONSE`, rather than letting a wrong shape reach the UI.
+- Every response is parsed with the matching schema from `@l5asly/contracts`. A response that doesn't match throws `ApiClientError` with code `INVALID_RESPONSE`, rather than letting a wrong shape reach the UI.
 - Error responses are parsed into `ApiClientError` with the server's `code`, `message`, `requestId`, and `details`. The client adds `NETWORK_ERROR` (API unreachable) and `HTTP_ERROR` (an error response without the error envelope).
 - `getErrorMessage(error)` gives a message that is safe to show to the user.
 - Upload endpoints send `FormData`. The viewer profile is sent as a JSON string, because multipart fields are text.
@@ -61,4 +61,4 @@ The web tests run in jsdom with Testing Library (`src/test/setup.ts` adds the `j
 
 ## Build and serve
 
-`pnpm --filter @l5sly/web build` runs `tsc -b` and `vite build` into `apps/web/dist`. In production, the `web` Docker image (`apps/web/Dockerfile`) serves that folder with nginx, falls back to `index.html` for client routes, and proxies `/api` to the `api` container (`apps/web/nginx.conf`). During development, Vite on port 5173 proxies `/api` to port 4000.
+`pnpm --filter @l5asly/web build` runs `tsc -b` and `vite build` into `apps/web/dist`. In production, the `web` Docker image (`apps/web/Dockerfile`) serves that folder with nginx, falls back to `index.html` for client routes, and proxies `/api` to the `api` container (`apps/web/nginx.conf`). During development, Vite on port 5173 proxies `/api` to port 4000.

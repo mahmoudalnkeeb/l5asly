@@ -178,7 +178,7 @@ importers:
 
   apps/api:
     dependencies:
-      '@l5sly/contracts':
+      '@l5asly/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
       '@nestjs/bullmq':
@@ -275,7 +275,7 @@ importers:
       '@hookform/resolvers':
         specifier: ^5.9.1
         version: 5.9.1(@standard-schema/spec@1.1.0)(react-hook-form@7.89.0(@types/react@19.3.0)(react@19.3.0))(zod@4.6.5)
-      '@l5sly/contracts':
+      '@l5asly/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
       '@mui/icons-material':

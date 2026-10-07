@@ -118,7 +118,7 @@ async function main() {
     }
     const reason = error instanceof Error ? error.message : String(error);
     console.warn(
-      `yt-dlp: download failed (${reason}). Mock mode still works. For live mode, run \`pnpm --filter @l5sly/api run install:yt-dlp\` again or set YTDLP_PATH.`,
+      `yt-dlp: download failed (${reason}). Mock mode still works. For live mode, run \`pnpm --filter @l5asly/api run install:yt-dlp\` again or set YTDLP_PATH.`,
     );
   }
 }

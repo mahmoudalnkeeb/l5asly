@@ -4,9 +4,9 @@ Both apps use [Vitest](https://vitest.dev). `pnpm test` runs every suite, and `p
 
 ```bash
 pnpm test                                    # all packages
-pnpm --filter @l5sly/api test                # API only
-pnpm --filter @l5sly/api exec vitest run src/summaries/providers/systemone
-pnpm --filter @l5sly/api exec vitest         # watch mode
+pnpm --filter @l5asly/api test                # API only
+pnpm --filter @l5asly/api exec vitest run src/summaries/providers/systemone
+pnpm --filter @l5asly/api exec vitest         # watch mode
 ```
 
 ## What to test

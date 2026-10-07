@@ -6,7 +6,7 @@ import type {
   RecommendedMoment,
   SummaryResult,
   TranscriptSegment,
-} from "@l5sly/contracts";
+} from "@l5asly/contracts";
 import { formatTimestamp, getContentProps } from "./format";
 
 export interface TranscriptRow {

@@ -15,7 +15,7 @@ Example: a new `tone` option that the viewer chooses when creating a summary.
 
 ## Add an API endpoint
 
-1. Define the request and response schemas in `@l5sly/contracts` and export their types.
+1. Define the request and response schemas in `@l5asly/contracts` and export their types.
 2. Add the business logic to the service (`summaries/services/`). It throws `AppError` for expected failures.
 3. Add the route to the controller. It's one line that calls the service, with `@HttpCode` when the status isn't `200`, and input validation through `ZodValidationPipe` or `@SummaryIdParam()`.
 4. Add a function to `apps/web/src/lib/api-client.ts` that validates the response with the contract schema.
@@ -56,7 +56,7 @@ YouTube changes often break older yt-dlp releases, so expect to upgrade it from 
 
 1. Pick a release on the [yt-dlp releases page](https://github.com/yt-dlp/yt-dlp/releases).
 2. In `apps/api/scripts/install-yt-dlp.mjs`, set `YTDLP_VERSION` to the release tag and replace every value in `ASSET_CHECKSUMS` with the matching line from that release's `SHA2-256SUMS` file.
-3. Run `pnpm --filter @l5sly/api run install:yt-dlp`. It sees the new version, downloads it, and verifies the checksum.
+3. Run `pnpm --filter @l5asly/api run install:yt-dlp`. It sees the new version, downloads it, and verifies the checksum.
 4. Run a live YouTube job, or at least `apps/api/bin/yt-dlp --version`, before you push.
 
 ## Add or replace a provider

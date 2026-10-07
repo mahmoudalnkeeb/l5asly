@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { PrecheckResult, SummaryJob } from "@l5sly/contracts";
+import type { PrecheckResult, SummaryJob } from "@l5asly/contracts";
 import { ThemeProvider } from "@/components/theme-provider";
 import { FailedSummaryState } from "./failed-summary-state";
 import { getPrecheckQueryKey } from "./precheck-query";

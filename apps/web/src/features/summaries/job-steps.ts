@@ -1,4 +1,4 @@
-import type { JobStep } from "@l5sly/contracts";
+import type { JobStep } from "@l5asly/contracts";
 
 interface JobStepDefinition {
   step: JobStep;

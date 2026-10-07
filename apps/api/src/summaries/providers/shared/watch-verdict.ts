@@ -2,7 +2,7 @@ import type {
   SummaryLanguage,
   VerdictSignals,
   WatchVerdict,
-} from "@l5sly/contracts";
+} from "@l5asly/contracts";
 
 export interface VerdictScores {
   watchProbability: number;

@@ -1,7 +1,7 @@
 import { Box, Button, Chip, Paper, Stack, Typography } from "@mui/material";
 import ArrowForward from "@mui/icons-material/ArrowForward";
 
-import type { PrecheckResult as PrecheckResultData } from "@l5sly/contracts";
+import type { PrecheckResult as PrecheckResultData } from "@l5asly/contracts";
 import { formatTimestamp, getContentProps } from "./format";
 import { VerdictScale, VerdictSignalChips } from "./verdict-insights";
 

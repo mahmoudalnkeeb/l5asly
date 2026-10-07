@@ -34,7 +34,7 @@ retry(
 
 ## Validation
 
-- Validate every request at the boundary with the Zod schemas from `@l5sly/contracts`: `@Body(new ZodValidationPipe(schema))`.
+- Validate every request at the boundary with the Zod schemas from `@l5asly/contracts`: `@Body(new ZodValidationPipe(schema))`.
 - A `ZodError` thrown anywhere becomes a `400 VALIDATION_ERROR` response, with per-field `details`.
 - Validate queue payloads (`processSummaryJobSchema`), database rows, and provider responses the same way. TypeScript types are not runtime checks.
 - Pipes run inside interceptors. That is why `DiscardRejectedUploadInterceptor`, listed after `FileInterceptor`, also deletes uploads that a pipe rejects.

@@ -40,8 +40,8 @@ pnpm check
 To work on one package:
 
 ```bash
-pnpm --filter @l5sly/api test
-pnpm --filter @l5sly/web dev
+pnpm --filter @l5asly/api test
+pnpm --filter @l5asly/web dev
 ```
 
 ## Live providers
@@ -58,7 +58,7 @@ Live YouTube processing uses `yt-dlp`. `pnpm install` downloads the standalone b
 | The web app shows "The server could not be reached" | The API is not running on port 4000, or it is still waiting for Redis. |
 | A dependency with native binaries fails after a fresh install | pnpm runs install scripts only for the packages listed under `allowBuilds` in `pnpm-workspace.yaml`. Add the package there only if it really needs its install script. |
 | Startup fails with `... is required when PROVIDER_MODE is live` | Set the missing key in `.env`, or switch back to `PROVIDER_MODE=mock`. |
-| A YouTube job fails with "The yt-dlp executable was not found" | The download during `pnpm install` failed (it prints a `yt-dlp:` warning), or your platform has no standalone build. Run `pnpm --filter @l5sly/api run install:yt-dlp`, or install yt-dlp yourself and set `YTDLP_PATH`. |
+| A YouTube job fails with "The yt-dlp executable was not found" | The download during `pnpm install` failed (it prints a `yt-dlp:` warning), or your platform has no standalone build. Run `pnpm --filter @l5asly/api run install:yt-dlp`, or install yt-dlp yourself and set `YTDLP_PATH`. |
 | `pnpm install` fails with "does not match the pinned SHA-256 checksum" | The downloaded yt-dlp differs from the pinned release. Don't bypass it. Retry, and report it if it persists. |
 
 Local data lives in `./data` (the database file and uploads). Delete that folder to start from an empty library.

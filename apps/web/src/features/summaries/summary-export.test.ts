@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { SummaryResult } from "@l5sly/contracts";
+import type { SummaryResult } from "@l5asly/contracts";
 import {
   buildNotesFileName,
   buildNotesText,

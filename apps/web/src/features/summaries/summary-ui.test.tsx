@@ -16,7 +16,7 @@ import type {
   SummaryJob,
   SummaryLanguage,
   SummaryResult as SummaryResultData,
-} from "@l5sly/contracts";
+} from "@l5asly/contracts";
 import { NotificationProvider } from "@/components/notifications";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ViewerProfileProvider } from "@/features/profile/viewer-profile";

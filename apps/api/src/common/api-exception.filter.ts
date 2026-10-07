@@ -9,7 +9,7 @@ import type { Request, Response } from "express";
 import { InjectPinoLogger, PinoLogger } from "nestjs-pino";
 import { ZodError } from "zod";
 
-import type { ApiError, ApiErrorResponse } from "@l5sly/contracts";
+import type { ApiError, ApiErrorResponse } from "@l5asly/contracts";
 
 import { AppError } from "./errors.js";
 import { readRequestId } from "./request-id.js";
