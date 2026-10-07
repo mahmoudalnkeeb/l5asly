@@ -7,9 +7,12 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
+import { m } from "motion/react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 
 import type { SummaryJob } from "@l5asly/contracts";
+import { enterAnimation } from "@/components/enter-animation";
 import { useNotification } from "@/components/notifications";
 import {
   ProcessingState,
@@ -56,6 +59,13 @@ function SummaryJobView({ summaryId }: { summaryId: string }) {
     refetchInterval: (query) =>
       isJobRunning(query.state.data) ? ACTIVE_JOB_POLL_MS : false,
   });
+  const [hasShownJob, setHasShownJob] = useState(false);
+
+  useEffect(() => {
+    if (summaryQuery.data) {
+      setHasShownJob(true);
+    }
+  }, [summaryQuery.data]);
 
   function notifyError(error: Error): void {
     notify({ severity: "error", message: getErrorMessage(error) });
@@ -99,6 +109,86 @@ function SummaryJobView({ summaryId }: { summaryId: string }) {
     onError: notifyError,
   });
 
+  function renderJobState(job: SummaryJob): ReactNode {
+    if (isJobRunning(job)) {
+      return (
+        <ProcessingState
+          job={job}
+          isCancelling={cancelMutation.isPending}
+          onCancel={() => cancelMutation.mutate()}
+          hasConnectionError={summaryQuery.isRefetchError}
+        />
+      );
+    }
+
+    if (job.status === "failed") {
+      return (
+        <FailedSummaryState
+          job={job}
+          isRetrying={retryMutation.isPending}
+          isDeleting={deleteMutation.isPending}
+          onRetry={(file) => retryMutation.mutate(file)}
+          onDelete={() => deleteMutation.mutate()}
+        />
+      );
+    }
+
+    if (job.status === "cancelled") {
+      return (
+        <Container maxWidth="sm" sx={{ py: 6 }}>
+          <SourceDetails source={job.source} />
+          <Typography variant="h1" sx={{ mt: 2 }}>
+            This job was cancelled
+          </Typography>
+          <Alert sx={{ mt: 3 }} severity="info">
+            <AlertTitle>Processing cancelled</AlertTitle>
+            {job.error ?? "You can return to the form and try again."}
+          </Alert>
+          <Stack
+            direction="row"
+            spacing={2}
+            sx={{ mt: 3, flexWrap: "wrap", rowGap: 2 }}
+          >
+            <Button variant="contained" component={Link} to="/">
+              Start a new summary
+            </Button>
+            <Button variant="outlined" component={Link} to="/library">
+              Back to library
+            </Button>
+          </Stack>
+        </Container>
+      );
+    }
+
+    if (!job.result) {
+      return (
+        <Container maxWidth="sm" sx={{ py: 6 }}>
+          <Alert severity="error">
+            <AlertTitle>Result unavailable</AlertTitle>The server completed this
+            job without a result.
+          </Alert>
+          <Button
+            sx={{ mt: 3 }}
+            variant="outlined"
+            component={Link}
+            to="/library"
+          >
+            Back to library
+          </Button>
+        </Container>
+      );
+    }
+
+    return (
+      <SummaryResult
+        result={job.result}
+        source={job.source}
+        requestedLanguage={job.options.language}
+        expectation={job.options.expectation}
+      />
+    );
+  }
+
   if (summaryQuery.isPending) {
     return <ProcessingStateSkeleton />;
   }
@@ -135,81 +225,15 @@ function SummaryJobView({ summaryId }: { summaryId: string }) {
 
   const job = summaryQuery.data;
   if (!job) return <ProcessingStateSkeleton />;
-  if (isJobRunning(job)) {
-    return (
-      <ProcessingState
-        job={job}
-        isCancelling={cancelMutation.isPending}
-        onCancel={() => cancelMutation.mutate()}
-        hasConnectionError={summaryQuery.isRefetchError}
-      />
-    );
-  }
 
-  if (job.status === "failed") {
-    return (
-      <FailedSummaryState
-        job={job}
-        isRetrying={retryMutation.isPending}
-        isDeleting={deleteMutation.isPending}
-        onRetry={(file) => retryMutation.mutate(file)}
-        onDelete={() => deleteMutation.mutate()}
-      />
-    );
-  }
-
-  if (job.status === "cancelled") {
-    return (
-      <Container maxWidth="sm" sx={{ py: 6 }}>
-        <SourceDetails source={job.source} />
-        <Typography variant="h1" sx={{ mt: 2 }}>
-          This job was cancelled
-        </Typography>
-        <Alert sx={{ mt: 3 }} severity="info">
-          <AlertTitle>Processing cancelled</AlertTitle>
-          {job.error ?? "You can return to the form and try again."}
-        </Alert>
-        <Stack
-          direction="row"
-          spacing={2}
-          sx={{ mt: 3, flexWrap: "wrap", rowGap: 2 }}
-        >
-          <Button variant="contained" component={Link} to="/">
-            Start a new summary
-          </Button>
-          <Button variant="outlined" component={Link} to="/library">
-            Back to library
-          </Button>
-        </Stack>
-      </Container>
-    );
-  }
-
-  if (!job.result) {
-    return (
-      <Container maxWidth="sm" sx={{ py: 6 }}>
-        <Alert severity="error">
-          <AlertTitle>Result unavailable</AlertTitle>The server completed this
-          job without a result.
-        </Alert>
-        <Button
-          sx={{ mt: 3 }}
-          variant="outlined"
-          component={Link}
-          to="/library"
-        >
-          Back to library
-        </Button>
-      </Container>
-    );
-  }
-
+  // The first view replaces the loading skeleton, so it appears without a fade.
   return (
-    <SummaryResult
-      result={job.result}
-      source={job.source}
-      requestedLanguage={job.options.language}
-      expectation={job.options.expectation}
-    />
+    <m.div
+      key={isJobRunning(job) ? "running" : job.status}
+      {...enterAnimation}
+      initial={hasShownJob ? enterAnimation.initial : false}
+    >
+      {renderJobState(job)}
+    </m.div>
   );
 }

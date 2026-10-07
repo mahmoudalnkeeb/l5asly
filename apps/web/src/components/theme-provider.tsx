@@ -8,6 +8,7 @@ import {
 } from "react";
 import { CssBaseline, useMediaQuery } from "@mui/material";
 import { ThemeProvider as MaterialThemeProvider } from "@mui/material/styles";
+import { domAnimation, LazyMotion, MotionConfig } from "motion/react";
 import { createMaterialTheme } from "@/components/material-theme";
 
 const THEMES = ["dark", "light", "system"] as const;
@@ -101,7 +102,10 @@ export function ThemeProvider({
     <ThemeProviderContext.Provider value={value}>
       <MaterialThemeProvider theme={materialTheme}>
         <CssBaseline />
-        {children}
+        {/* domAnimation is enough for fades and keeps motion's bundle cost low. */}
+        <LazyMotion features={domAnimation} strict>
+          <MotionConfig reducedMotion="user">{children}</MotionConfig>
+        </LazyMotion>
       </MaterialThemeProvider>
     </ThemeProviderContext.Provider>
   );

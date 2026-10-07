@@ -1,4 +1,8 @@
 import "@testing-library/jest-dom/vitest";
+import { MotionGlobalConfig } from "motion/react";
+
+// jsdom has no animation frames, so entrances would stay at opacity 0.
+MotionGlobalConfig.skipAnimations = true;
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,

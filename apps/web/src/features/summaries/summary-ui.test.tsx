@@ -786,13 +786,15 @@ describe("Summary result", () => {
     expect(scrollIntoView).toHaveBeenCalledOnce();
   });
 
-  it("opens the tab named in the URL", () => {
+  it("opens the tab named in the URL", async () => {
     renderResult(result, "English", ["/?tab=notes"]);
     expect(screen.getByRole("tab", { name: "Notes" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
-    expect(screen.getByRole("heading", { name: "Key notes" })).toBeVisible();
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "Key notes" })).toBeVisible(),
+    );
   });
 
   it("renders repeated generated titles without dropping sections", () => {
