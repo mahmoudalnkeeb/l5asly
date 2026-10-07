@@ -92,6 +92,9 @@ export interface VideoMetadata {
   durationSeconds: number | null;
   description: string;
   chapters: Array<{ title: string; startSeconds: number }>;
+  thumbnailUrl: string | null;
+  // The language code YouTube reports for the video, such as "en" or "ar-EG".
+  languageCode: string | null;
 }
 
 export interface PrecheckInput {

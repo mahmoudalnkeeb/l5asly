@@ -14,12 +14,15 @@ import { FileInterceptor } from "@nestjs/platform-express";
 import {
   createUrlSummarySchema,
   precheckRequestSchema,
+  videoPreviewRequestSchema,
   type CreateUrlSummaryInput,
   type PrecheckRequest,
   type PrecheckResult,
   type SummaryJob,
   type SummaryListItem,
   type SummaryOptions,
+  type VideoPreview,
+  type VideoPreviewRequest,
 } from "@l5asly/contracts";
 
 import { ZodValidationPipe } from "../common/zod-validation.pipe.js";
@@ -47,6 +50,15 @@ export class SummariesController {
     @Body(new ZodValidationPipe(precheckRequestSchema)) input: PrecheckRequest,
   ): Promise<PrecheckResult> {
     return this.precheckService.check(input);
+  }
+
+  @Post("preview")
+  @HttpCode(HttpStatus.OK)
+  preview(
+    @Body(new ZodValidationPipe(videoPreviewRequestSchema))
+    input: VideoPreviewRequest,
+  ): Promise<VideoPreview> {
+    return this.precheckService.preview(input.url);
   }
 
   @Post("url")

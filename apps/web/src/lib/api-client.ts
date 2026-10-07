@@ -5,17 +5,20 @@ import {
   precheckResultSchema,
   summaryJobSchema,
   summaryListItemSchema,
+  videoPreviewSchema,
   type CreateUrlSummaryInput,
   type PrecheckRequest,
   type PrecheckResult,
   type SummaryJob,
   type SummaryListItem,
   type SummaryOptions,
+  type VideoPreview,
 } from "@l5asly/contracts";
 
 const errorResponseSchema = z.object({ error: apiErrorSchema });
 const jobResponseSchema = z.object({ data: summaryJobSchema });
 const precheckResponseSchema = z.object({ data: precheckResultSchema });
+const previewResponseSchema = z.object({ data: videoPreviewSchema });
 const summaryListResponseSchema = z.object({
   data: z.array(summaryListItemSchema),
 });
@@ -127,6 +130,20 @@ export async function precheckVideo(
   });
 
   return parseResponse(precheckResponseSchema, body).data;
+}
+
+export async function previewVideo(
+  url: string,
+  signal?: AbortSignal,
+): Promise<VideoPreview> {
+  const body = await request("/api/summaries/preview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+    signal,
+  });
+
+  return parseResponse(previewResponseSchema, body).data;
 }
 
 interface CreateUploadSummaryInput {

@@ -21,7 +21,15 @@ const ytDlpMetadataSchema = z.object({
   chapters: z
     .array(z.object({ title: z.string(), start_time: z.number() }))
     .nullish(),
+  thumbnail: z.string().nullish(),
+  language: z.string().nullish(),
 });
+
+// The thumbnail is shown in the browser, so only a well-formed HTTPS URL is kept.
+function toThumbnailUrl(value: string | null | undefined): string | null {
+  const parsed = z.url({ protocol: /^https$/ }).safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
 
 const METADATA_OUTPUT_LIMIT = 20 * 1024 * 1024;
 
@@ -97,6 +105,8 @@ export class YtDlpYoutubeDownloader
         title: chapter.title,
         startSeconds: chapter.start_time,
       })),
+      thumbnailUrl: toThumbnailUrl(parsed.data.thumbnail),
+      languageCode: parsed.data.language ?? null,
     };
   }
 

@@ -13,6 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   isYouTubeUrl,
   precheckResultSchema,
+  videoPreviewSchema,
   summaryJobSchema,
   summaryListItemSchema,
 } from "@l5asly/contracts";
@@ -231,6 +232,34 @@ describe("summary API", () => {
     });
     const after = await request(app.getHttpServer()).get("/api/summaries").expect(200);
     expect(after.body.data).toHaveLength(before.body.data.length);
+  });
+
+  it("previews a YouTube link's public details without creating a job", async () => {
+    const before = await request(app.getHttpServer()).get("/api/summaries").expect(200);
+
+    const response = await request(app.getHttpServer())
+      .post("/api/summaries/preview")
+      .send({ url: "https://www.youtube.com/watch?v=abc123" })
+      .expect(200);
+
+    expect(videoPreviewSchema.parse(response.body.data)).toEqual({
+      title: "How creative work survives the age of AI",
+      channel: "Sample channel",
+      durationSeconds: expect.any(Number),
+      thumbnailUrl: null,
+      spokenLanguage: "English",
+    });
+    const after = await request(app.getHttpServer()).get("/api/summaries").expect(200);
+    expect(after.body.data).toHaveLength(before.body.data.length);
+  });
+
+  it("rejects previews for non-YouTube links", async () => {
+    const response = await request(app.getHttpServer())
+      .post("/api/summaries/preview")
+      .send({ url: "https://example.com/video.mp4" })
+      .expect(400);
+
+    expect(response.body.error.code).toBe("VALIDATION_ERROR");
   });
 
   it("rejects quick checks for non-YouTube links", async () => {

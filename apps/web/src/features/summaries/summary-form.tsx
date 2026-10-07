@@ -17,7 +17,13 @@ import {
 import CloseOutlined from "@mui/icons-material/CloseOutlined";
 import InsertDriveFileOutlined from "@mui/icons-material/InsertDriveFileOutlined";
 import LockOutlined from "@mui/icons-material/LockOutlined";
-import { useEffect, useId, useState, type DragEvent } from "react";
+import {
+  useEffect,
+  useId,
+  useState,
+  type DragEvent,
+  type ReactNode,
+} from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
 import { z } from "zod";
@@ -47,9 +53,11 @@ import {
   createUrlSummary,
   getErrorMessage,
   precheckVideo,
+  previewVideo,
 } from "@/lib/api-client";
 import { PrecheckResult } from "./precheck-result";
 import { getPrecheckQueryKey } from "./precheck-query";
+import { VideoPreview, VideoPreviewLoading } from "./video-preview";
 
 // Matches the API's default MAX_UPLOAD_MB, so oversized files are rejected
 // before a long upload rather than after it.
@@ -227,9 +235,40 @@ export function SummaryForm() {
       notify({ severity: "error", message: getErrorMessage(error) }),
   });
 
-  // Fast verdict from public metadata; no job is created and nothing is downloaded.
+  // The preview and the quick check read public metadata only; no job is
+  // created and nothing is downloaded.
   const checkedUrl = useDebouncedValue(url, PRECHECK_DELAY_MS);
   const canPrecheck = !file && isYouTubeUrl(checkedUrl);
+  // Hide earlier results as soon as the link is edited.
+  const showPrecheck = canPrecheck && checkedUrl === url;
+
+  const preview = useQuery({
+    queryKey: ["video-preview", checkedUrl],
+    queryFn: ({ signal }) => previewVideo(checkedUrl, signal),
+    enabled: canPrecheck,
+    staleTime: Infinity,
+    retry: false,
+  });
+  // The link whose preview has been applied to the form. The quick check waits
+  // for it, so it runs once, in the spoken language the preview detected.
+  const [previewedUrl, setPreviewedUrl] = useState("");
+  // Tracked separately from isDirty, which is false again when the viewer
+  // picks the default language on purpose.
+  const [hasChosenSpokenLanguage, setHasChosenSpokenLanguage] = useState(false);
+  const previewData = preview.data;
+  useEffect(() => {
+    if (!previewData) return;
+    const spokenLanguage = previewData.spokenLanguage;
+    if (spokenLanguage && !hasChosenSpokenLanguage) {
+      form.setValue("sourceLanguage", spokenLanguage);
+      if (!form.getFieldState("language").isDirty) {
+        form.setValue("language", spokenLanguage);
+      }
+    }
+    setPreviewedUrl(checkedUrl);
+  }, [previewData, checkedUrl, hasChosenSpokenLanguage, form]);
+  const isPreviewSettled = preview.isError || previewedUrl === checkedUrl;
+
   const precheckInput = {
     url: checkedUrl,
     language,
@@ -238,12 +277,19 @@ export function SummaryForm() {
   const precheck = useQuery({
     queryKey: getPrecheckQueryKey(precheckInput),
     queryFn: () => precheckVideo({ ...precheckInput, viewerProfile }),
-    enabled: canPrecheck,
+    enabled: canPrecheck && isPreviewSettled,
     staleTime: Infinity,
     retry: false,
   });
-  // Hide an earlier result as soon as the link is edited.
-  const showPrecheck = canPrecheck && checkedUrl === url;
+
+  // A failed preview shows nothing here; the quick check below reports the
+  // same metadata failure with its own message.
+  let previewContent: ReactNode = null;
+  if (showPrecheck && preview.isPending) {
+    previewContent = <VideoPreviewLoading />;
+  } else if (showPrecheck && preview.isSuccess) {
+    previewContent = <VideoPreview preview={preview.data} />;
+  }
 
   const submit = form.handleSubmit((values) => createSummary.mutate(values));
 
@@ -329,6 +375,7 @@ export function SummaryForm() {
                 {createSummary.isPending ? "Starting…" : "Summarize"}
               </Button>
             }
+            footer={previewContent}
           >
             {file ? (
               <SelectedFile name={file.name} onRemove={removeFile} />
@@ -402,6 +449,7 @@ export function SummaryForm() {
                   onChange={(value) => {
                     const spokenLanguage = summaryLanguageSchema.parse(value);
                     field.onChange(spokenLanguage);
+                    setHasChosenSpokenLanguage(true);
                     // The brief follows the video's language until the
                     // viewer picks a brief language of their own.
                     if (!form.getFieldState("language").isDirty) {

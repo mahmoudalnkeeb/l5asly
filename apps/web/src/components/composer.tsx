@@ -55,6 +55,8 @@ interface ComposerLineProps {
   aside?: ReactNode;
   // Multiline inputs keep the label beside their first line.
   alignTop?: boolean;
+  // Extra content under the input, such as a preview of what was entered.
+  footer?: ReactNode;
 }
 
 export function ComposerLine({
@@ -64,6 +66,7 @@ export function ComposerLine({
   action,
   aside,
   alignTop = false,
+  footer,
 }: ComposerLineProps) {
   const trailing = action ?? aside;
   return (
@@ -107,6 +110,11 @@ export function ComposerLine({
           }}
         >
           {trailing}
+        </Box>
+      ) : null}
+      {footer ? (
+        <Box sx={{ gridColumn: { xs: "1 / -1", sm: "2 / -1" }, minWidth: 0 }}>
+          {footer}
         </Box>
       ) : null}
     </Box>

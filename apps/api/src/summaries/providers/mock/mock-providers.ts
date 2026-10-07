@@ -334,6 +334,8 @@ export class MockVideoMetadataSource implements VideoMetadataSource {
         { title: "Judgment is the bottleneck", startSeconds: 318 },
         { title: "A practical workflow", startSeconds: 584 },
       ],
+      thumbnailUrl: null,
+      languageCode: "en",
     };
   }
 }
