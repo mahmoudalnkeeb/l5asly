@@ -131,10 +131,15 @@ export function SummaryResult({
   }
 
   function jumpToTranscript(seconds: number): void {
+    // Segments are in time order; use the last one that starts at or before
+    // the chosen time.
     let segmentIndex = 0;
-    result.transcript.forEach((segment, index) => {
-      if (segment.startSeconds <= seconds) segmentIndex = index;
-    });
+    for (const [index, segment] of result.transcript.entries()) {
+      if (segment.startSeconds > seconds) {
+        break;
+      }
+      segmentIndex = index;
+    }
     setSearch("");
     setJumpRequest((previous) => ({
       id: (previous?.id ?? 0) + 1,
@@ -147,7 +152,8 @@ export function SummaryResult({
     try {
       await navigator.clipboard.writeText(buildSummaryText(result));
       notify({ severity: "success", message: "Summary copied." });
-    } catch {
+    } catch (error) {
+      console.warn("Could not copy the summary to the clipboard", error);
       notify({
         severity: "error",
         message:

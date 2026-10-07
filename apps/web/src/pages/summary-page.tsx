@@ -1,7 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { useNotification } from "@/components/notifications";
-
 import {
   Alert,
   AlertTitle,
@@ -10,6 +7,10 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+
+import type { SummaryJob } from "@l5sly/contracts";
+import { useNotification } from "@/components/notifications";
 import {
   ProcessingState,
   ProcessingStateSkeleton,
@@ -23,6 +24,16 @@ import {
   getSummary,
   retrySummary,
 } from "@/lib/api-client";
+
+// Faster than the library because the user is watching this one job.
+const ACTIVE_JOB_POLL_MS = 900;
+
+function isJobRunning(job: SummaryJob | undefined): boolean {
+  if (!job) {
+    return false;
+  }
+  return job.status === "queued" || job.status === "processing";
+}
 
 export function SummaryPage() {
   const { summaryId } = useParams();
@@ -41,11 +52,14 @@ function SummaryJobView({ summaryId }: { summaryId: string }) {
   const summaryQuery = useQuery({
     queryKey: ["summary", summaryId],
     queryFn: ({ signal }) => getSummary(summaryId, signal),
-    refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      return status === "queued" || status === "processing" ? 900 : false;
-    },
+    refetchInterval: (query) =>
+      isJobRunning(query.state.data) ? ACTIVE_JOB_POLL_MS : false,
   });
+
+  function notifyError(error: Error): void {
+    notify({ severity: "error", message: getErrorMessage(error) });
+  }
+
   const cancelMutation = useMutation({
     mutationFn: () => cancelSummary(summaryId),
     onSuccess: (job) => {
@@ -53,8 +67,7 @@ function SummaryJobView({ summaryId }: { summaryId: string }) {
       void queryClient.invalidateQueries({ queryKey: ["summaries"] });
       notify({ severity: "success", message: "Processing cancelled." });
     },
-    onError: (error) =>
-      notify({ severity: "error", message: getErrorMessage(error) }),
+    onError: notifyError,
   });
   const retryMutation = useMutation({
     mutationFn: (file?: File) => retrySummary(summaryId, file),
@@ -66,8 +79,7 @@ function SummaryJobView({ summaryId }: { summaryId: string }) {
         message: "Retry queued. Available checkpoints will be reused.",
       });
     },
-    onError: (error) =>
-      notify({ severity: "error", message: getErrorMessage(error) }),
+    onError: notifyError,
   });
   const deleteMutation = useMutation({
     mutationFn: () => deleteSummary(summaryId),
@@ -83,8 +95,7 @@ function SummaryJobView({ summaryId }: { summaryId: string }) {
         message: "Job and saved processing data deleted.",
       });
     },
-    onError: (error) =>
-      notify({ severity: "error", message: getErrorMessage(error) }),
+    onError: notifyError,
   });
 
   if (summaryQuery.isPending) {
@@ -123,7 +134,7 @@ function SummaryJobView({ summaryId }: { summaryId: string }) {
 
   const job = summaryQuery.data;
   if (!job) return <ProcessingStateSkeleton />;
-  if (job.status === "queued" || job.status === "processing") {
+  if (isJobRunning(job)) {
     return (
       <ProcessingState
         job={job}

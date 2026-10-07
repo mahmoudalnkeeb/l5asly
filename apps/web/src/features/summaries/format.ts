@@ -19,8 +19,8 @@ const createdAtFormatter = new Intl.DateTimeFormat(undefined, {
   timeStyle: "short",
 });
 
-export function formatCreatedAt(value: string): string {
-  return createdAtFormatter.format(new Date(value));
+export function formatCreatedAt(createdAt: string): string {
+  return createdAtFormatter.format(new Date(createdAt));
 }
 
 const languageNames = new Intl.DisplayNames(["en"], {
@@ -34,13 +34,13 @@ export function formatLanguageLabel(
   sourceLanguage: string,
   fallback: string,
 ): string {
-  const value = sourceLanguage.trim();
-  if (!value || value.toLocaleLowerCase() === "unknown") {
+  const language = sourceLanguage.trim();
+  if (!language || language.toLocaleLowerCase() === "unknown") {
     return fallback;
   }
 
   const knownName = SUMMARY_LANGUAGES.find(
-    (language) => language.toLocaleLowerCase() === value.toLocaleLowerCase(),
+    (name) => name.toLocaleLowerCase() === language.toLocaleLowerCase(),
   );
   if (knownName) {
     return knownName;
@@ -48,12 +48,14 @@ export function formatLanguageLabel(
 
   // `of` throws for anything that is not a language tag, so only pass it the
   // two- or three-letter base code.
-  const baseCode = value.split("-")[0] ?? value;
+  const baseCode = language.split("-")[0] ?? language;
   if (/^[a-z]{2,3}$/i.test(baseCode)) {
     const displayName = languageNames.of(baseCode);
-    if (displayName) return displayName;
+    if (displayName) {
+      return displayName;
+    }
   }
-  return value.charAt(0).toLocaleUpperCase() + value.slice(1);
+  return language.charAt(0).toLocaleUpperCase() + language.slice(1);
 }
 
 // Windows at or above this relevance count toward the time worth watching.
@@ -69,11 +71,13 @@ export function calculateFocusSeconds(timeline: TimelineWindow[]): number {
   return total;
 }
 
-// Arabic text needs RTL direction and the Arabic font; other text follows its content.
-export function getContentProps(text: string): {
+interface ContentProps {
   dir: "rtl" | "auto";
   lang?: "ar";
-} {
+}
+
+// Arabic text needs RTL direction and the Arabic font; other text follows its content.
+export function getContentProps(text: string): ContentProps {
   if (/\p{Script=Arabic}/u.test(text)) {
     return { dir: "rtl", lang: "ar" };
   }

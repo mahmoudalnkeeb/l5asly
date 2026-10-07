@@ -1,9 +1,9 @@
 import { Box, Divider, Typography } from "@mui/material";
 
-import type { SummaryResult } from "@l5sly/contracts";
+import type { SummaryNote } from "@l5sly/contracts";
 import { getContentProps } from "./format";
 
-export function NotesPanel({ notes }: { notes: SummaryResult["notes"] }) {
+export function NotesPanel({ notes }: { notes: SummaryNote[] }) {
   return (
     <Box sx={{ maxWidth: 800 }}>
       <Typography variant="h2" sx={{ mb: 2 }}>

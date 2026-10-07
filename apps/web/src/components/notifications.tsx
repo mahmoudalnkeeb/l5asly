@@ -17,9 +17,9 @@ interface ShownNotification extends Notification {
   id: number;
 }
 
-const NotificationContext = createContext<(notification: Notification) => void>(
-  () => undefined,
-);
+type Notify = (notification: Notification) => void;
+
+const NotificationContext = createContext<Notify | undefined>(undefined);
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   // The last notification stays in state while the snackbar fades out, so the
@@ -29,8 +29,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   );
   const [isOpen, setIsOpen] = useState(false);
 
-  const notify = useCallback((next: Notification) => {
-    setNotification((previous) => ({ ...next, id: (previous?.id ?? 0) + 1 }));
+  const notify = useCallback<Notify>((next) => {
+    setNotification((previous) => ({
+      message: next.message,
+      severity: next.severity,
+      id: (previous?.id ?? 0) + 1,
+    }));
     setIsOpen(true);
   }, []);
 
@@ -55,6 +59,14 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useNotification() {
-  return useContext(NotificationContext);
+export function useNotification(): Notify {
+  const notify = useContext(NotificationContext);
+
+  if (!notify) {
+    throw new Error(
+      "useNotification must be used inside NotificationProvider.",
+    );
+  }
+
+  return notify;
 }

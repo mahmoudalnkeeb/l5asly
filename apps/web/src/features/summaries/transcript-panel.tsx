@@ -2,11 +2,12 @@ import { Box, InputAdornment, Stack, TextField, Typography } from "@mui/material
 import SearchOutlined from "@mui/icons-material/SearchOutlined";
 import type { ReactNode } from "react";
 
-import type { SummaryResult } from "@l5sly/contracts";
+import type {
+  RecommendedMoment,
+  SummaryResult,
+  TranscriptSegment,
+} from "@l5sly/contracts";
 import { formatTimestamp, getContentProps } from "./format";
-
-type TranscriptSegment = SummaryResult["transcript"][number];
-type RecommendedMoment = SummaryResult["recommendedMoments"][number];
 
 export interface TranscriptRow {
   // Position in the full transcript; stays stable while search filters rows.

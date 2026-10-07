@@ -13,9 +13,10 @@ interface ConfirmDialogProps {
   title: string;
   description: string;
   confirmLabel: string;
-  pendingLabel: string;
   cancelLabel: string;
-  isPending: boolean;
+  // Only for actions that wait on the server; synchronous actions omit both.
+  isPending?: boolean;
+  pendingLabel?: string;
   onConfirm: () => void;
   onClose: () => void;
 }
@@ -27,13 +28,17 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel,
-  pendingLabel,
   cancelLabel,
-  isPending,
+  isPending = false,
+  pendingLabel,
   onConfirm,
   onClose,
 }: ConfirmDialogProps) {
   const titleId = useId();
+  let actionLabel = confirmLabel;
+  if (isPending && pendingLabel) {
+    actionLabel = pendingLabel;
+  }
 
   return (
     <Dialog
@@ -57,7 +62,7 @@ export function ConfirmDialog({
           onClick={onConfirm}
           disabled={isPending}
         >
-          {isPending ? pendingLabel : confirmLabel}
+          {actionLabel}
         </Button>
       </DialogActions>
     </Dialog>

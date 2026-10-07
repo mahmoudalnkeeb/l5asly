@@ -20,22 +20,41 @@ const summaryListResponseSchema = z.object({
   data: z.array(summaryListItemSchema),
 });
 
+// Server errors carry a request ID; errors raised in the browser do not.
+interface ApiClientErrorOptions {
+  message: string;
+  code: string;
+  requestId?: string;
+  details?: Record<string, string[]>;
+}
+
 export class ApiClientError extends Error {
   readonly code: string;
   readonly requestId?: string;
   readonly details?: Record<string, string[]>;
 
-  constructor(options: {
-    message: string;
-    code: string;
-    requestId?: string;
-    details?: Record<string, string[]>;
-  }) {
+  constructor(options: ApiClientErrorOptions) {
     super(options.message);
     this.name = "ApiClientError";
     this.code = options.code;
     this.requestId = options.requestId;
     this.details = options.details;
+  }
+}
+
+// Error responses from a proxy or crashed server may not be JSON. Returning
+// null lets the caller report the HTTP status instead of a parse error.
+async function readJsonBody(response: Response): Promise<unknown> {
+  try {
+    const body: unknown = await response.json();
+    return body;
+  } catch (error) {
+    console.warn("Response body was not valid JSON", {
+      url: response.url,
+      status: response.status,
+      error,
+    });
+    return null;
   }
 }
 
@@ -45,7 +64,9 @@ async function request(path: string, init?: RequestInit): Promise<unknown> {
     response = await fetch(path, init);
   } catch (error) {
     // A cancelled query is not a network failure; let the caller see the abort.
-    if (init?.signal?.aborted) throw error;
+    if (init?.signal?.aborted) {
+      throw error;
+    }
     throw new ApiClientError({
       code: "NETWORK_ERROR",
       message:
@@ -53,8 +74,10 @@ async function request(path: string, init?: RequestInit): Promise<unknown> {
     });
   }
 
-  if (response.ok && response.status === 204) return undefined;
-  const body: unknown = await response.json().catch(() => null);
+  if (response.ok && response.status === 204) {
+    return undefined;
+  }
+  const body = await readJsonBody(response);
   if (!response.ok) {
     const parsedError = errorResponseSchema.safeParse(body);
     if (parsedError.success) {
@@ -106,27 +129,34 @@ export async function precheckVideo(
   return parseResponse(precheckResponseSchema, body).data;
 }
 
-export async function createUploadSummary(input: {
+interface CreateUploadSummaryInput {
   file: File;
   options: SummaryOptions;
-}): Promise<SummaryJob> {
-  const form = new FormData();
-  form.append("video", input.file);
-  form.append("language", input.options.language);
+}
+
+export async function createUploadSummary(
+  input: CreateUploadSummaryInput,
+): Promise<SummaryJob> {
+  const uploadForm = new FormData();
+  uploadForm.append("video", input.file);
+  uploadForm.append("language", input.options.language);
   if (input.options.sourceLanguage) {
-    form.append("sourceLanguage", input.options.sourceLanguage);
+    uploadForm.append("sourceLanguage", input.options.sourceLanguage);
   }
   if (input.options.viewerProfile) {
-    form.append("viewerProfile", JSON.stringify(input.options.viewerProfile));
+    uploadForm.append(
+      "viewerProfile",
+      JSON.stringify(input.options.viewerProfile),
+    );
   }
-  form.append("depth", input.options.depth);
+  uploadForm.append("depth", input.options.depth);
   if (input.options.expectation) {
-    form.append("expectation", input.options.expectation);
+    uploadForm.append("expectation", input.options.expectation);
   }
 
   const body = await request("/api/summaries/upload", {
     method: "POST",
-    body: form,
+    body: uploadForm,
   });
 
   return parseResponse(jobResponseSchema, body).data;
@@ -176,11 +206,11 @@ export async function retrySummary(
     body = new FormData();
     body.append("video", file);
   }
-  const response = await request(
+  const responseBody = await request(
     `/api/summaries/${encodeURIComponent(summaryId)}/retry`,
     { method: "POST", body },
   );
-  return parseResponse(jobResponseSchema, response).data;
+  return parseResponse(jobResponseSchema, responseBody).data;
 }
 
 export async function deleteSummary(summaryId: string): Promise<void> {

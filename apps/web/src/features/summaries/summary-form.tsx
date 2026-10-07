@@ -32,6 +32,9 @@ import {
   isYouTubeUrl,
   summaryDepthSchema,
   summaryLanguageSchema,
+  type SummaryJob,
+  type SummaryOptions,
+  type ViewerProfile,
 } from "@l5sly/contracts";
 import { useNotification } from "@/components/notifications";
 import { useViewerProfile } from "@/features/profile/viewer-profile";
@@ -111,6 +114,48 @@ type SummaryFormValues = z.infer<typeof formSchema>;
 // and the question field below them start on the same line.
 const FORM_HEADER_HEIGHT = 48;
 
+// A short public English clip used by "Try a sample".
+const SAMPLE_MEDIA_URL =
+  "https://static.deepgram.com/examples/Bueller-Life-moves-pretty-fast.wav";
+
+function hasProfileContent(profile: ViewerProfile): boolean {
+  return Object.values(profile).some((field) => field.trim() !== "");
+}
+
+function toOptionalText(text: string | undefined): string | undefined {
+  if (text === undefined || text.trim() === "") {
+    return undefined;
+  }
+  return text;
+}
+
+// The form schema has already required the chosen source, so a missing file
+// or link here is a programming error rather than a user mistake.
+function startSummary(
+  values: SummaryFormValues,
+  viewerProfile: ViewerProfile | undefined,
+): Promise<SummaryJob> {
+  const options: SummaryOptions = {
+    language: values.language,
+    sourceLanguage: values.sourceLanguage,
+    viewerProfile,
+    depth: values.depth,
+    expectation: toOptionalText(values.expectation),
+  };
+
+  if (values.sourceType === "upload") {
+    if (!values.file) {
+      throw new Error("An upload summary was submitted without a file.");
+    }
+    return createUploadSummary({ file: values.file, options });
+  }
+
+  if (!values.url) {
+    throw new Error("A link summary was submitted without a URL.");
+  }
+  return createUrlSummary({ url: values.url, ...options });
+}
+
 const depthDescriptions = {
   quick: "Key points and recommended moments.",
   detailed: "More context and supporting notes.",
@@ -123,9 +168,7 @@ export function SummaryForm() {
   const notify = useNotification();
   const { profile, storageError } = useViewerProfile();
   const viewerProfile =
-    profile && Object.values(profile).some((value) => value.trim())
-      ? profile
-      : undefined;
+    profile && hasProfileContent(profile) ? profile : undefined;
   const advancedOptionsId = useId();
   const form = useForm<SummaryFormValues>({
     resolver: zodResolver(formSchema),
@@ -146,28 +189,8 @@ export function SummaryForm() {
   const canPrecheck = sourceType === "url" && isYouTubeUrl(url);
 
   const createSummary = useMutation({
-    mutationFn: async (values: SummaryFormValues) => {
-      if (values.sourceType === "upload" && values.file) {
-        return createUploadSummary({
-          file: values.file,
-          options: {
-            language: values.language,
-            sourceLanguage: values.sourceLanguage,
-            viewerProfile,
-            depth: values.depth,
-            expectation: values.expectation,
-          },
-        });
-      }
-      return createUrlSummary({
-        url: values.url ?? "",
-        language: values.language,
-        sourceLanguage: values.sourceLanguage,
-        viewerProfile,
-        depth: values.depth,
-        expectation: values.expectation,
-      });
-    },
+    mutationFn: (values: SummaryFormValues) =>
+      startSummary(values, viewerProfile),
     onSuccess: (job) => {
       // The library can be cached for a few seconds; make sure it shows this job.
       void queryClient.invalidateQueries({ queryKey: ["summaries"] });
@@ -184,7 +207,7 @@ export function SummaryForm() {
         url: videoUrl,
         language: form.getValues("language"),
         viewerProfile,
-        expectation: form.getValues("expectation") || undefined,
+        expectation: toOptionalText(form.getValues("expectation")),
       }),
   });
   // Hide an earlier result once the link is edited.
@@ -203,10 +226,7 @@ export function SummaryForm() {
   function trySample(): void {
     form.setValue("sourceLanguage", "English");
     form.setValue("sourceType", "url");
-    form.setValue(
-      "url",
-      "https://static.deepgram.com/examples/Bueller-Life-moves-pretty-fast.wav",
-    );
+    form.setValue("url", SAMPLE_MEDIA_URL);
     void form.handleSubmit((values) => createSummary.mutate(values))();
   }
 

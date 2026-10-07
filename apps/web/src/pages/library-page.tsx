@@ -24,7 +24,9 @@ import { formatCreatedAt, formatTimestamp } from "@/features/summaries/format";
 import { verdictStyles } from "@/features/summaries/verdict-insights";
 import { getErrorMessage, listSummaries } from "@/lib/api-client";
 
-const statusLabels: Record<SummaryListItem["status"], string> = {
+type SummaryStatus = SummaryListItem["status"];
+
+const statusLabels: Record<SummaryStatus, string> = {
   queued: "Queued",
   processing: "Processing",
   completed: "Ready",
@@ -32,17 +34,43 @@ const statusLabels: Record<SummaryListItem["status"], string> = {
   cancelled: "Cancelled",
 };
 
+const statusColors: Record<SummaryStatus, "error" | "success" | "default"> = {
+  queued: "default",
+  processing: "default",
+  completed: "success",
+  failed: "error",
+  cancelled: "default",
+};
+
+const actionLabels: Record<SummaryStatus, string> = {
+  queued: "View progress",
+  processing: "View progress",
+  completed: "Read summary",
+  failed: "View details",
+  cancelled: "View details",
+};
+
+// Polls only while a job is still running, so an idle library stays quiet.
+const ACTIVE_JOB_POLL_MS = 1_500;
+
+function hasActiveJobs(summaries: SummaryListItem[] | undefined): boolean {
+  if (!summaries) {
+    return false;
+  }
+  return summaries.some(
+    (summary) =>
+      summary.status === "queued" || summary.status === "processing",
+  );
+}
+
 export function LibraryPage() {
   const summariesQuery = useQuery({
     queryKey: ["summaries"],
     queryFn: ({ signal }) => listSummaries(signal),
     refetchInterval: (query) =>
-      query.state.data?.some(
-        (item) => item.status === "queued" || item.status === "processing",
-      )
-        ? 1_500
-        : false,
+      hasActiveJobs(query.state.data) ? ACTIVE_JOB_POLL_MS : false,
   });
+
   return (
     <Container maxWidth="lg" sx={{ pt: { xs: 3, sm: 5 }, pb: 8 }}>
       <Stack
@@ -59,61 +87,105 @@ export function LibraryPage() {
           New summary
         </Button>
       </Stack>
-      {summariesQuery.isPending ? (
-        <Paper variant="outlined" sx={{ p: 3 }}>
-          {[0, 1, 2].map((item) => (
-            <Box key={item} sx={{ py: 2 }}>
-              <Skeleton width={100} />
-              <Skeleton height={40} width="75%" />
-              <Skeleton width="40%" />
-            </Box>
-          ))}
-        </Paper>
-      ) : null}
-      {summariesQuery.isError ? (
-        <Alert severity="error">
-          <AlertTitle>Could not load your library</AlertTitle>
-          {getErrorMessage(summariesQuery.error)}
-        </Alert>
-      ) : null}
-      {summariesQuery.data?.length === 0 ? (
-        <Paper variant="outlined" sx={{ py: 8, px: 3, textAlign: "center" }}>
-          <VideoLibraryOutlined
-            sx={{ fontSize: 40, color: "text.secondary", mb: 2 }}
-          />
-          <Typography variant="h2">No summaries yet</Typography>
-          <Typography color="text.secondary" sx={{ mt: 1, mb: 3 }}>
-            Your completed summaries and active jobs will appear here.
-          </Typography>
-          <Button component={Link} to="/" variant="contained">
-            Summarize a video
-          </Button>
-        </Paper>
-      ) : null}
-      {summariesQuery.data?.length ? (
-        <Paper variant="outlined" sx={{ overflow: "hidden" }}>
-          <List disablePadding>
-            {summariesQuery.data.map((summary, index) => (
-              <Box component="li" key={summary.id} sx={{ listStyle: "none" }}>
-                <SummaryRow summary={summary} />
-                {index < summariesQuery.data.length - 1 ? <Divider /> : null}
-              </Box>
-            ))}
-          </List>
-        </Paper>
-      ) : null}
+      <LibraryContent
+        summaries={summariesQuery.data}
+        isPending={summariesQuery.isPending}
+        error={summariesQuery.error}
+      />
     </Container>
   );
 }
 
+interface LibraryContentProps {
+  summaries: SummaryListItem[] | undefined;
+  isPending: boolean;
+  error: Error | null;
+}
+
+function LibraryContent({ summaries, isPending, error }: LibraryContentProps) {
+  if (isPending) {
+    return <LibrarySkeleton />;
+  }
+
+  if (!summaries) {
+    return (
+      <Alert severity="error">
+        <AlertTitle>Could not load your library</AlertTitle>
+        {getErrorMessage(error)}
+      </Alert>
+    );
+  }
+
+  if (summaries.length === 0) {
+    return <EmptyLibrary />;
+  }
+
+  return (
+    <>
+      {/* A failed refresh keeps showing the last list it loaded. */}
+      {error ? (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          Could not refresh your library. {getErrorMessage(error)}
+        </Alert>
+      ) : null}
+      <Paper variant="outlined" sx={{ overflow: "hidden" }}>
+        <List disablePadding>
+          {summaries.map((summary, index) => (
+            <Box component="li" key={summary.id} sx={{ listStyle: "none" }}>
+              <SummaryRow summary={summary} />
+              {index < summaries.length - 1 ? <Divider /> : null}
+            </Box>
+          ))}
+        </List>
+      </Paper>
+    </>
+  );
+}
+
+function LibrarySkeleton() {
+  return (
+    <Paper variant="outlined" sx={{ p: 3 }}>
+      {[0, 1, 2].map((placeholderRow) => (
+        <Box key={placeholderRow} sx={{ py: 2 }}>
+          <Skeleton width={100} />
+          <Skeleton height={40} width="75%" />
+          <Skeleton width="40%" />
+        </Box>
+      ))}
+    </Paper>
+  );
+}
+
+function EmptyLibrary() {
+  return (
+    <Paper variant="outlined" sx={{ py: 8, px: 3, textAlign: "center" }}>
+      <VideoLibraryOutlined
+        sx={{ fontSize: 40, color: "text.secondary", mb: 2 }}
+      />
+      <Typography variant="h2">No summaries yet</Typography>
+      <Typography color="text.secondary" sx={{ mt: 1, mb: 3 }}>
+        Your completed summaries and active jobs will appear here.
+      </Typography>
+      <Button component={Link} to="/" variant="contained">
+        Summarize a video
+      </Button>
+    </Paper>
+  );
+}
+
 function SummaryRow({ summary }: { summary: SummaryListItem }) {
-  let statusColor: "error" | "success" | "default" = "default";
-  if (summary.status === "failed") statusColor = "error";
-  if (summary.status === "completed") statusColor = "success";
-  let actionLabel = "View details";
-  if (summary.status === "completed") actionLabel = "Read summary";
-  if (summary.status === "queued" || summary.status === "processing")
-    actionLabel = "View progress";
+  const verdictStyle = summary.verdict
+    ? verdictStyles[summary.verdict.recommendation]
+    : null;
+  const details = [
+    summary.source.type === "upload" ? "Uploaded media" : "Video link",
+  ];
+  if (summary.durationSeconds !== null) {
+    details.push(formatTimestamp(summary.durationSeconds));
+  }
+  if (summary.status !== "completed") {
+    details.push(summary.stage);
+  }
 
   return (
     <ListItemButton
@@ -135,19 +207,20 @@ function SummaryRow({ summary }: { summary: SummaryListItem }) {
             label={statusLabels[summary.status]}
             size="small"
             variant="outlined"
-            color={statusColor}
+            color={statusColors[summary.status]}
           />
-          {summary.verdict ? (
+          {verdictStyle ? (
             <Chip
               size="small"
-              icon={verdictStyles[summary.verdict.recommendation].icon}
-              label={verdictStyles[summary.verdict.recommendation].label}
-              color={verdictStyles[summary.verdict.recommendation].color}
+              icon={verdictStyle.icon}
+              label={verdictStyle.label}
+              color={verdictStyle.color}
               sx={{ "& .MuiChip-icon": { fontSize: 16 } }}
             />
           ) : null}
           <Typography
             component="time"
+            dateTime={summary.createdAt}
             variant="caption"
             color="text.secondary"
             sx={{ fontFamily: "var(--font-mono)" }}
@@ -163,15 +236,11 @@ function SummaryRow({ summary }: { summary: SummaryListItem }) {
           {summary.title ?? summary.source.name}
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          {summary.source.type === "upload" ? "Uploaded media" : "Video link"}
-          {summary.durationSeconds !== null
-            ? ` · ${formatTimestamp(summary.durationSeconds)}`
-            : ""}
-          {summary.status !== "completed" ? ` · ${summary.stage}` : ""}
+          {details.join(" · ")}
         </Typography>
       </Box>
       {/* Icons are aria-hidden, so the action is spelled out for screen readers. */}
-      <span className="sr-only">{actionLabel}</span>
+      <span className="sr-only">{actionLabels[summary.status]}</span>
       <ArrowForward
         fontSize="small"
         sx={{ color: "primary.main", flexShrink: 0 }}

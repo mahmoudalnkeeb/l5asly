@@ -27,20 +27,23 @@ const stepLabels: Record<JobStep, string> = {
   summary: "Summary generation",
 };
 
+interface FailedSummaryStateProps {
+  job: SummaryJob;
+  isRetrying: boolean;
+  isDeleting: boolean;
+  // The file is only passed when the saved media expired and must be re-uploaded.
+  onRetry: (file?: File) => void;
+  onDelete: () => void;
+}
+
 export function FailedSummaryState({
   job,
   isRetrying,
   isDeleting,
   onRetry,
   onDelete,
-}: {
-  job: SummaryJob;
-  isRetrying: boolean;
-  isDeleting: boolean;
-  onRetry: (file?: File) => void;
-  onDelete: () => void;
-}) {
-  const [file, setFile] = useState<File>();
+}: FailedSummaryStateProps) {
+  const [replacementFile, setReplacementFile] = useState<File>();
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const isBusy = isRetrying || isDeleting;
   const requiresUpload = job.retryInfo?.requiresUpload ?? false;
@@ -88,16 +91,16 @@ export function FailedSummaryState({
               type="file"
               accept="video/*,audio/*"
               aria-label="Select media to retry"
-              onChange={(event) => setFile(event.target.files?.[0])}
+              onChange={(event) => setReplacementFile(event.target.files?.[0])}
               disabled={isBusy}
             />
           </Button>
-          {file ? (
+          {replacementFile ? (
             <Typography
               variant="body2"
               sx={{ mt: 1, overflowWrap: "anywhere" }}
             >
-              {file.name}
+              {replacementFile.name}
             </Typography>
           ) : null}
         </Box>
@@ -116,8 +119,8 @@ export function FailedSummaryState({
               <Replay />
             )
           }
-          onClick={() => onRetry(file)}
-          disabled={isBusy || (requiresUpload && !file)}
+          onClick={() => onRetry(replacementFile)}
+          disabled={isBusy || (requiresUpload && !replacementFile)}
         >
           {isRetrying ? "Retrying…" : retryLabel}
         </Button>

@@ -25,6 +25,54 @@ const EMPTY_PROFILE: ViewerProfile = {
   preferences: "",
 };
 
+interface ProfileFieldConfig {
+  name: keyof ViewerProfile;
+  label: string;
+  placeholder: string;
+  hint: string;
+  minRows: number;
+  // Matches the limits in viewerProfileSchema.
+  maxLength: number;
+}
+
+const PROFILE_FIELDS: ProfileFieldConfig[] = [
+  {
+    name: "background",
+    label: "Role or background",
+    placeholder: "e.g. Backend developer with two years of experience",
+    hint: "Helps set the level of explanation.",
+    minRows: 2,
+    maxLength: 500,
+  },
+  {
+    name: "knowledge",
+    label: "What you already know",
+    placeholder:
+      "e.g. Node.js, SQL and REST APIs. New to React and content management systems.",
+    hint: "Include skills you know and topics that are new to you.",
+    minRows: 3,
+    maxLength: 1000,
+  },
+  {
+    name: "goals",
+    label: "What you want to learn",
+    placeholder:
+      "e.g. Build production-ready APIs and understand architectural trade-offs.",
+    hint: "These goals guide every new summary. Your question for a video takes priority.",
+    minRows: 3,
+    maxLength: 1000,
+  },
+  {
+    name: "preferences",
+    label: "Explanation preferences",
+    placeholder:
+      "e.g. Practical examples, prerequisites, pitfalls, and concrete next steps. Explain Arabic in Egyptian dialect.",
+    hint: "Optional. Keep personal or sensitive information out of your profile.",
+    minRows: 2,
+    maxLength: 500,
+  },
+];
+
 export function ProfilePage() {
   const { profile, storageError, saveProfile, clearProfile } =
     useViewerProfile();
@@ -48,12 +96,13 @@ export function ProfilePage() {
   function handleSave(values: ViewerProfile): void {
     try {
       saveProfile(values);
-      form.reset(values);
+      reset(values);
       notify({
         severity: "success",
         message: "Profile saved. New summaries will use these preferences.",
       });
-    } catch {
+    } catch (error) {
+      console.warn("Could not save the viewer profile", error);
       notify({
         severity: "error",
         message:
@@ -66,12 +115,13 @@ export function ProfilePage() {
     setIsConfirmingClear(false);
     try {
       clearProfile();
-      form.reset(EMPTY_PROFILE);
+      reset(EMPTY_PROFILE);
       notify({
         severity: "success",
         message: "Profile removed. New summaries will use only your question.",
       });
-    } catch {
+    } catch (error) {
+      console.warn("Could not remove the viewer profile", error);
       notify({
         severity: "error",
         message:
@@ -97,82 +147,30 @@ export function ProfilePage() {
             {storageError ? (
               <Alert severity="warning">{storageError}</Alert>
             ) : null}
-            <Controller
-              control={form.control}
-              name="background"
-              render={({ field, fieldState }) => (
-                <TextField
-                  {...field}
-                  multiline
-                  minRows={2}
-                  label="Role or background"
-                  placeholder="e.g. Backend developer with two years of experience"
-                  error={Boolean(fieldState.error)}
-                  helperText={
-                    fieldState.error?.message ??
-                    "Helps set the level of explanation."
-                  }
-                  slotProps={{ htmlInput: { maxLength: 500, dir: "auto" } }}
-                />
-              )}
-            />
-            <Controller
-              control={form.control}
-              name="knowledge"
-              render={({ field, fieldState }) => (
-                <TextField
-                  {...field}
-                  multiline
-                  minRows={3}
-                  label="What you already know"
-                  placeholder="e.g. Node.js, SQL and REST APIs. New to React and content management systems."
-                  error={Boolean(fieldState.error)}
-                  helperText={
-                    fieldState.error?.message ??
-                    "Include skills you know and topics that are new to you."
-                  }
-                  slotProps={{ htmlInput: { maxLength: 1000, dir: "auto" } }}
-                />
-              )}
-            />
-            <Controller
-              control={form.control}
-              name="goals"
-              render={({ field, fieldState }) => (
-                <TextField
-                  {...field}
-                  multiline
-                  minRows={3}
-                  label="What you want to learn"
-                  placeholder="e.g. Build production-ready APIs and understand architectural trade-offs."
-                  error={Boolean(fieldState.error)}
-                  helperText={
-                    fieldState.error?.message ??
-                    "These goals guide every new summary. Your question for a video takes priority."
-                  }
-                  slotProps={{ htmlInput: { maxLength: 1000, dir: "auto" } }}
-                />
-              )}
-            />
-            <Controller
-              control={form.control}
-              name="preferences"
-              render={({ field, fieldState }) => (
-                <TextField
-                  {...field}
-                  multiline
-                  minRows={2}
-                  label="Explanation preferences"
-                  placeholder="e.g. Practical examples, prerequisites, pitfalls, and concrete next steps. Explain Arabic in Egyptian dialect."
-                  error={Boolean(fieldState.error)}
-                  helperText={
-                    fieldState.error?.message ??
-                    "Optional. Keep personal or sensitive information out of your profile."
-                  }
-                  slotProps={{ htmlInput: { maxLength: 500, dir: "auto" } }}
-                />
-              )}
-            />
+            {PROFILE_FIELDS.map((profileField) => (
+              <Controller
+                key={profileField.name}
+                control={form.control}
+                name={profileField.name}
+                render={({ field, fieldState }) => (
+                  <TextField
+                    {...field}
+                    multiline
+                    minRows={profileField.minRows}
+                    label={profileField.label}
+                    placeholder={profileField.placeholder}
+                    error={Boolean(fieldState.error)}
+                    helperText={fieldState.error?.message ?? profileField.hint}
+                    slotProps={{
+                      htmlInput: {
+                        maxLength: profileField.maxLength,
+                        dir: "auto",
+                      },
+                    }}
+                  />
+                )}
+              />
+            ))}
             <Typography variant="body2" color="text.secondary">
               Saved in this browser, not an account. Your profile is sent to the
               summary and verdict providers with each new job. Each job keeps a
@@ -202,9 +200,7 @@ export function ProfilePage() {
         title="Clear your profile?"
         description="Your saved background, knowledge, goals and preferences are removed from this browser. Existing summaries keep the profile they used."
         confirmLabel="Clear profile"
-        pendingLabel="Clearing…"
         cancelLabel="Keep profile"
-        isPending={false}
         onConfirm={handleClear}
         onClose={() => setIsConfirmingClear(false)}
       />
