@@ -8,7 +8,6 @@ apps/
   web/            @l5sly/web       React 19 single-page app
 packages/
   contracts/      @l5sly/contracts Zod schemas and types shared by api and web
-bin/              yt-dlp.exe for live YouTube downloads on Windows
 docs/             these docs
 compose.yaml      local Redis
 ```
@@ -24,6 +23,7 @@ The API validates requests with these schemas, and the web app validates respons
 ## `apps/api`: the NestJS API
 
 ```text
+scripts/install-yt-dlp.mjs   downloads yt-dlp for this machine on `pnpm install`
 src/
   main.ts                 creates the Nest app and starts listening
   app.module.ts           root module: config, logging, database, BullMQ, static files, summaries
