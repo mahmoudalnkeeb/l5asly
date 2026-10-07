@@ -1,6 +1,6 @@
 # Optimization opportunities (draft for review)
 
-None of these are implemented. The NestJS migration kept the existing behavior on purpose, so each item below is a separate decision. Line references are for the `refactor/nestjs-pnpm` branch.
+None of these are implemented. The NestJS migration kept the existing behavior on purpose, so each item below is a separate decision. Line references were correct when this was written and may have drifted since.
 
 Priority reflects expected impact against risk: **P1** is a clear win with low risk, **P2** is worth doing once the numbers confirm it, and **P3** is optional.
 

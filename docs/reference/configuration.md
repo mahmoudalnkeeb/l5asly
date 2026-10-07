@@ -39,6 +39,12 @@ In `live` mode, `DEEPGRAM_API_KEY`, `LLM_API_KEY`, and `JEV_API_KEY` are require
 
 Keys are only ever read by the server. They are sent as `authorization` headers by the named HTTP clients and never logged.
 
+### Getting keys
+
+- **Deepgram:** create a key in the [Deepgram console](https://console.deepgram.com/).
+- **LLM and Jev:** both defaults point at [SovereignEG](https://sovereigneg.com/docs/quickstart). Sign up at [sovereigneg.com/signup](https://sovereigneg.com/signup) and create an API key in the dashboard. Usage is paid from prepaid credit; see [pricing](https://sovereigneg.com/pricing). Both `LLM_API_KEY` and `JEV_API_KEY` take a SovereignEG key.
+- **Another LLM provider:** `LLM_BASE_URL` accepts any OpenAI-compatible endpoint that supports strict `json_schema` structured output. Set `LLM_MODEL` to one of its models.
+
 ## Install time
 
 This variable is read by `apps/api/scripts/install-yt-dlp.mjs` during `pnpm install`, not by the API.
