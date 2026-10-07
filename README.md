@@ -1,6 +1,6 @@
 # L5asly
 
-[![Check](https://github.com/mahmoudalnkeeb/l5asly/actions/workflows/check.yml/badge.svg)](https://github.com/mahmoudalnkeeb/l5asly/actions/workflows/check.yml)
+[![Check](https://github.com/mahmoudalnkeeb/l5asly/actions/workflows/check.yml/badge.svg)](https://github.com/mahmoudalnkeeb/l5asly/actions/workflows/check.yml) [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/mahmoudalnakeeb)
 
 L5asly tells you whether a video is worth your time, and if it isn't, what it says.
 
