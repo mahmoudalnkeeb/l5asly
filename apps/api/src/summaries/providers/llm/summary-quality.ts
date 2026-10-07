@@ -26,6 +26,32 @@ interface SummaryDraft {
   personalizedGuidance?: PersonalizedGuidance;
 }
 
+const ARABIC_LETTER = /\p{Script=Arabic}/gu;
+const LATIN_LETTER = /\p{Script=Latin}/gu;
+
+// Technical terms stay in Latin script inside Arabic prose, so this compares the
+// share of letters rather than requiring every word to be in the target script.
+export function isSummaryInLanguage(
+  draft: Pick<SummaryDraft, "title" | "overview" | "viewerAnswer" | "sections">,
+  language: SummaryGenerationInput["language"],
+): boolean {
+  const prose = [
+    draft.title,
+    draft.overview,
+    draft.viewerAnswer ?? "",
+    ...draft.sections.map((section) => `${section.title} ${section.body}`),
+  ].join(" ");
+  const arabicCount = prose.match(ARABIC_LETTER)?.length ?? 0;
+  const latinCount = prose.match(LATIN_LETTER)?.length ?? 0;
+  const letterCount = arabicCount + latinCount;
+  if (letterCount === 0) {
+    return true;
+  }
+
+  const targetCount = language === "Arabic" ? arabicCount : latinCount;
+  return targetCount / letterCount >= 0.5;
+}
+
 export function finalizeGeneratedSummary(
   draft: SummaryDraft,
   input: SummaryGenerationInput,

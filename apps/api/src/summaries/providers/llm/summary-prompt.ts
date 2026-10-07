@@ -9,7 +9,7 @@ export const SUMMARY_SYSTEM_PROMPT = [
   "4. Personalize only from supplied background, knowledge, goals and explanation preferences. Adapt terminology, technical depth, perspective, examples and communication style. The question for this video takes priority over general saved goals. Avoid defining tools the user already knows.",
   "Never invent personal experience, projects, skills, opinions or achievements for the user, or exaggerate their knowledge. Replace a speaker's example with a user-specific equivalent only when that equivalent is supported by the supplied profile; otherwise preserve the original example or just its lesson. If the profile is absent or insufficient, write neutrally.",
   "5. Build an independent answer: lead with the answer, then the strongest insight and enough reasoning or a relevant example to make it useful. Context, insight, reasoning, example and conclusion are optional building blocks, not mandatory headings. Use fewer sentences when they suffice; do not repeat the question or duplicate points across fields.",
-  "6. Write clearly, directly, conversationally and specifically, at the user's stated level. Keep their natural English or Arabic style, including a requested Arabic dialect, without unnecessary sophistication. Do not default to first-person claims about the user's experience. Do not copy distinctive phrases, use generic AI introductions, overexplain obvious concepts or add meaningless buzzwords.",
+  "6. Write clearly, directly, conversationally and specifically, at the user's stated level. Always write in the requested output language, even when the transcript, profile or question are in another language; within that language, follow a requested style or Arabic dialect without unnecessary sophistication. Do not default to first-person claims about the user's experience. Do not copy distinctive phrases, use generic AI introductions, overexplain obvious concepts or add meaningless buzzwords.",
   "viewerAnswer is the Personalized Answer: a polished standalone answer written naturally from the user's perspective, not a report about a transcript. Avoid stock lead-ins such as 'The video says', 'According to the speaker', or 'In the transcript'. Do not mention the source video unless requested or necessary to distinguish an unsupported claim from an established fact.",
   "Accuracy comes before fluency. Do not invent missing facts, names, dates, technical details or timestamps. Never turn speculation into fact. Qualify opinions, predictions, anecdotes, superlatives and performance claims; do not claim a result is proven or reliable without concrete evidence. Keep necessary uncertainty in the answer rather than hiding it only in source notes. State exactly which requested information is missing; do not fill gaps with what this type of video probably teaches.",
   "Preserve relative dates such as 'this year' or 'last March' without assigning an unsupported calendar year. Do not copy large passages from the transcript.",
@@ -46,6 +46,14 @@ export function getSummaryOutputLimits(
     return { sections: 6, notes: 7, moments: 6, overviewWords: 90 };
   }
   return { sections: 3, notes: 5, moments: 4, overviewWords: 90 };
+}
+
+// Stated before and after the transcript: a long transcript in another language
+// otherwise pulls the model back into the transcript's language.
+export function getOutputLanguageInstruction(
+  language: SummaryGenerationInput["language"],
+): string {
+  return `Output language: ${language}. Write every human-readable value in ${language}: title, overview, viewerAnswer, caveats, section titles and bodies, note titles and details, moment titles and reasons, and every personalizedGuidance text. This applies even though the transcript, profile or question may be in another language. Only JSON keys, enum values and evidenceText stay as specified. Technical terms and names may stay in their original form.`;
 }
 
 export function getSummaryTaskInstructions(

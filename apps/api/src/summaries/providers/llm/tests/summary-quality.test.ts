@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import type { SummaryGenerationInput } from "../../provider-contracts.js";
-import { finalizeGeneratedSummary } from "../summary-quality.js";
+import {
+  finalizeGeneratedSummary,
+  isSummaryInLanguage,
+} from "../summary-quality.js";
 
 const input: SummaryGenerationInput = {
   language: "English",
@@ -149,5 +152,33 @@ describe("finalizeGeneratedSummary", () => {
 
     expect(result.recommendedMoments[0]?.startSeconds).toBe(208.1);
     expect(result.recommendedMoments[0]).not.toHaveProperty("evidenceText");
+  });
+});
+
+describe("isSummaryInLanguage", () => {
+  const arabicSummary = {
+    title: "صناعة البرمجيات تحت الضغط",
+    overview: "يرى المتحدث أن بيئة العمل في البرمجيات أصبحت مرهقة.",
+    viewerAnswer:
+      "الفكرة الأساسية أن ضغط العمل مع أدوات AI وagents يدفع المطورين لترك المجال، وليس رفض التقنية نفسها.",
+    sections: [
+      { title: "التفويض بدل الأتمتة", body: "أدوات مثل Copilot تبعد المطور عن ناتج عمله." },
+    ],
+  };
+
+  it("accepts Arabic prose that keeps technical terms in Latin script", () => {
+    expect(isSummaryInLanguage(arabicSummary, "Arabic")).toBe(true);
+    expect(isSummaryInLanguage(arabicSummary, "English")).toBe(false);
+  });
+
+  it("rejects an English summary when Arabic was requested", () => {
+    const englishSummary = {
+      title: "Software Industry Distress",
+      overview: "The video argues that the software industry faces a systemic crisis.",
+      viewerAnswer: "The main claim is that the industry is becoming an inhospitable workplace.",
+      sections: [],
+    };
+    expect(isSummaryInLanguage(englishSummary, "Arabic")).toBe(false);
+    expect(isSummaryInLanguage(englishSummary, "English")).toBe(true);
   });
 });

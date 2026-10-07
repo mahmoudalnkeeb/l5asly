@@ -1,5 +1,6 @@
 import { HttpClient } from "@nestjs/http-client";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 import type { SummaryGenerationInput } from "../../provider-contracts.js";
 import { OpenAiSummaryProvider } from "../openai-summary.provider.js";
@@ -290,6 +291,69 @@ describe("summary response validation", () => {
     await expect(provider.summarize(input)).rejects.toMatchObject({
       code: "SUMMARY_INVALID_FORMAT",
       details: { response: ["The provider reached its output token limit."] },
+    });
+  });
+
+  describe("output language", () => {
+    const englishAnswer = {
+      ...answer,
+      title: "What is Strapi?",
+      overview: "A content management system.",
+      viewerAnswer: "Strapi is a headless CMS that exposes your content through an API.",
+    };
+
+    function respondInOrder(...contents: string[]): ReturnType<typeof vi.fn<typeof fetch>> {
+      const fetchMock = vi.fn<typeof fetch>();
+      for (const content of contents) {
+        fetchMock.mockResolvedValueOnce(
+          Response.json({ choices: [{ message: { content }, finish_reason: "stop" }] }),
+        );
+      }
+      vi.stubGlobal("fetch", fetchMock);
+      return fetchMock;
+    }
+
+    function readUserPrompt(fetchMock: ReturnType<typeof vi.fn<typeof fetch>>, callIndex: number): string {
+      const body = fetchMock.mock.calls[callIndex]?.[1]?.body;
+      if (typeof body !== "string") throw new Error("Expected a JSON model request.");
+      const requestBody = z
+        .object({ messages: z.array(z.object({ role: z.string(), content: z.string() })) })
+        .parse(JSON.parse(body));
+      const userMessage = requestBody.messages.find((message) => message.role === "user");
+      if (!userMessage) throw new Error("Expected a user message.");
+      return userMessage.content;
+    }
+
+    function createProvider(): OpenAiSummaryProvider {
+      return new OpenAiSummaryProvider(
+        new HttpClient({ baseUrl: "https://example.com/v1", timeout: 1000, retry: false }),
+        "test-model",
+      );
+    }
+
+    it("repeats the output language after the transcript", async () => {
+      const fetchMock = respondInOrder(JSON.stringify(answer));
+      await createProvider().summarize(input);
+      const prompt = readUserPrompt(fetchMock, 0);
+      const transcriptEnd = prompt.indexOf(input.transcript.segments[0]?.text ?? "");
+      expect(prompt.lastIndexOf("Output language: Arabic")).toBeGreaterThan(transcriptEnd);
+      expect(fetchMock).toHaveBeenCalledOnce();
+    });
+
+    it("asks once more when the summary comes back in the transcript's language", async () => {
+      const fetchMock = respondInOrder(JSON.stringify(englishAnswer), JSON.stringify(answer));
+      const summary = await createProvider().summarize(input);
+      expect(summary.title).toBe(answer.title);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(readUserPrompt(fetchMock, 1)).toContain("A previous attempt was written in the wrong language.");
+    });
+
+    it("fails instead of returning a summary in the wrong language", async () => {
+      respondInOrder(JSON.stringify(englishAnswer), JSON.stringify(englishAnswer));
+      await expect(createProvider().summarize(input)).rejects.toMatchObject({
+        code: "SUMMARY_INVALID_FORMAT",
+        details: { response: ["Wrong output language."] },
+      });
     });
   });
 
