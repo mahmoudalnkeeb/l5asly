@@ -61,6 +61,7 @@ import { estimateBriefSeconds } from "./brief-estimate";
 import { PrecheckResult } from "./precheck-result";
 import { getPrecheckQueryKey } from "./precheck-query";
 import { VideoPreview, VideoPreviewLoading } from "./video-preview";
+import { WhatYouGet } from "./what-you-get";
 
 // Matches the API's default MAX_UPLOAD_MB, so oversized files are rejected
 // before a long upload rather than after it.
@@ -829,60 +830,6 @@ function SuggestedQuestions({
         />
       ))}
     </Stack>
-  );
-}
-
-const PROMISES = [
-  {
-    title: "A verdict in seconds",
-    detail:
-      "Paste a YouTube link to see watch, key moments or skip before you start.",
-  },
-  {
-    title: "A brief that answers you",
-    detail: "Your question first, then what the video actually says.",
-  },
-  {
-    title: "The full transcript",
-    detail: "Timestamped, in the language the video is spoken in.",
-  },
-] as const;
-
-function WhatYouGet() {
-  return (
-    <Box
-      component="ul"
-      aria-label="What you get"
-      sx={{
-        display: "grid",
-        gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
-        gap: 1.5,
-        m: 0,
-        p: 0,
-        listStyle: "none",
-      }}
-    >
-      {PROMISES.map((promise) => (
-        <Box
-          component="li"
-          key={promise.title}
-          sx={{
-            border: "1px dashed",
-            borderColor: "divider",
-            borderRadius: 3,
-            px: 2,
-            py: 1.75,
-          }}
-        >
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            {promise.title}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-            {promise.detail}
-          </Typography>
-        </Box>
-      ))}
-    </Box>
   );
 }
 
