@@ -52,9 +52,11 @@ import {
   createUploadSummary,
   createUrlSummary,
   getErrorMessage,
+  listSummaries,
   precheckVideo,
   previewVideo,
 } from "@/lib/api-client";
+import { estimateBriefSeconds } from "./brief-estimate";
 import { PrecheckResult } from "./precheck-result";
 import { getPrecheckQueryKey } from "./precheck-query";
 import { VideoPreview, VideoPreviewLoading } from "./video-preview";
@@ -282,13 +284,34 @@ export function SummaryForm() {
     retry: false,
   });
 
+  // Recent briefs show how fast this installation is; the same list backs the
+  // library page.
+  const recentSummaries = useQuery({
+    queryKey: ["summaries"],
+    queryFn: ({ signal }) => listSummaries(signal),
+    enabled: canPrecheck,
+  });
+
   // A failed preview shows nothing here; the quick check below reports the
   // same metadata failure with its own message.
   let previewContent: ReactNode = null;
   if (showPrecheck && preview.isPending) {
     previewContent = <VideoPreviewLoading />;
   } else if (showPrecheck && preview.isSuccess) {
-    previewContent = <VideoPreview preview={preview.data} />;
+    const durationSeconds = preview.data.durationSeconds;
+    previewContent = (
+      <VideoPreview
+        preview={preview.data}
+        recommendation={
+          precheck.isSuccess ? precheck.data.verdict.recommendation : null
+        }
+        briefEstimateSeconds={
+          recentSummaries.data && durationSeconds !== null
+            ? estimateBriefSeconds(recentSummaries.data, durationSeconds)
+            : null
+        }
+      />
+    );
   }
 
   const submit = form.handleSubmit((values) => createSummary.mutate(values));

@@ -7,14 +7,30 @@ import { enterAnimation } from "@/components/enter-animation";
 import { getContentProps } from "./format";
 import { VerdictScale, VerdictSignalChips } from "./verdict-insights";
 
-const recommendationLabels: Record<
-  PrecheckResultData["verdict"]["recommendation"],
-  string
-> = {
+type Recommendation = PrecheckResultData["verdict"]["recommendation"];
+
+const recommendationLabels: Record<Recommendation, string> = {
   watch: "Looks worth watching",
   "watch-key-moments": "Likely worth a partial watch",
   skip: "Likely skip",
 };
+
+// The provisional verdict, shown beside the video preview once the quick
+// check returns.
+export function PrecheckVerdictChip({
+  recommendation,
+}: {
+  recommendation: Recommendation;
+}) {
+  return (
+    <Chip
+      size="small"
+      variant="outlined"
+      color={recommendation === "skip" ? "warning" : "primary"}
+      label={recommendationLabels[recommendation]}
+    />
+  );
+}
 
 interface PrecheckResultProps {
   result: PrecheckResultData;
@@ -28,7 +44,7 @@ export function PrecheckResult({
   onCreateSummary,
   isCreating,
 }: PrecheckResultProps) {
-  // The title, channel and length are already in the video preview above.
+  // The title, length and verdict label are already in the video preview above.
   return (
     <Paper
       variant="outlined"
@@ -37,14 +53,6 @@ export function PrecheckResult({
       aria-label="Quick check result"
       sx={{ p: { xs: 2.5, sm: 3 }, display: "grid", gap: 2 }}
     >
-      <Box>
-        <Chip
-          size="small"
-          variant="outlined"
-          color={result.verdict.recommendation === "skip" ? "warning" : "primary"}
-          label={recommendationLabels[result.verdict.recommendation]}
-        />
-      </Box>
       <VerdictScale
         recommendation={result.verdict.recommendation}
         isProvisional
