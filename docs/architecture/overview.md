@@ -34,7 +34,7 @@ flowchart LR
 
 The worker runs in the same process as the HTTP API. BullMQ would also allow it to run as a separate process, but nothing in the codebase does that today.
 
-In production, the API also serves the built web app from `apps/web/dist`. In development, Vite serves it and proxies `/api` to the API.
+The API serves only `/api`. In production, the `web` container (nginx) serves the built web app and proxies `/api` to the API; see `compose.yaml`. In development, Vite serves it and proxies `/api` to the API.
 
 ## Request flow: creating a summary
 

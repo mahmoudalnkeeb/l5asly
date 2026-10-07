@@ -61,4 +61,4 @@ The web tests run in jsdom with Testing Library (`src/test/setup.ts` adds the `j
 
 ## Build and serve
 
-`pnpm --filter @l5sly/web build` runs `tsc -b` and `vite build` into `apps/web/dist`. In production, the API serves that folder and falls back to `index.html` for client routes. During development, Vite on port 5173 proxies `/api` to port 4000.
+`pnpm --filter @l5sly/web build` runs `tsc -b` and `vite build` into `apps/web/dist`. In production, the `web` Docker image (`apps/web/Dockerfile`) serves that folder with nginx, falls back to `index.html` for client routes, and proxies `/api` to the `api` container (`apps/web/nginx.conf`). During development, Vite on port 5173 proxies `/api` to port 4000.

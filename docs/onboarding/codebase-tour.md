@@ -9,7 +9,7 @@ apps/
 packages/
   contracts/      @l5sly/contracts Zod schemas and types shared by api and web
 docs/             these docs
-compose.yaml      local Redis
+compose.yaml      Redis for development, or the whole app (web, api, redis) in Docker
 ```
 
 Workspace packages depend on each other with `workspace:*`. The API and the web app both import `@l5sly/contracts`, which is built to `packages/contracts/dist`. The root scripts always build it first.
