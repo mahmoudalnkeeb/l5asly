@@ -97,6 +97,12 @@ function renderUi(children: ReactNode, initialEntries = ["/"]): void {
   );
 }
 
+// Opens one of the composer's setting menus and picks an option.
+function chooseSetting(name: RegExp, option: string): void {
+  fireEvent.mouseDown(screen.getByRole("combobox", { name }));
+  fireEvent.click(screen.getByRole("option", { name: option }));
+}
+
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
@@ -107,18 +113,17 @@ afterEach(() => {
 describe("Summary workflow", () => {
   it("saves a profile once, restores it for editing and uses updates in new requests", async () => {
     renderUi(<ProfilePage />);
-    fireEvent.change(
-      screen.getByRole("textbox", { name: "Role or background" }),
-      { target: { value: "Backend developer" } },
-    );
-    fireEvent.change(
-      screen.getByRole("textbox", { name: "What you already know" }),
-      { target: { value: "SQL and JavaScript" } },
-    );
-    fireEvent.change(
-      screen.getByRole("textbox", { name: "What you want to learn" }),
-      { target: { value: "Learn Strapi" } },
-    );
+    expect(screen.getByRole("button", { name: "Save profile" })).toBeDisabled();
+    fireEvent.change(screen.getByRole("textbox", { name: "I am" }), {
+      target: { value: "Backend developer" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "I already know" }), {
+      target: { value: "SQL and JavaScript" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "I want to" }), {
+      target: { value: "Learn Strapi" },
+    });
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
     await waitFor(() =>
       expect(localStorage.getItem("l5asly-viewer-profile")).toContain(
@@ -127,13 +132,12 @@ describe("Summary workflow", () => {
     );
     cleanup();
     renderUi(<ProfilePage />);
-    expect(
-      screen.getByRole("textbox", { name: "Role or background" }),
-    ).toHaveValue("Backend developer");
-    fireEvent.change(
-      screen.getByRole("textbox", { name: "What you want to learn" }),
-      { target: { value: "Build content APIs" } },
+    expect(screen.getByRole("textbox", { name: "I am" })).toHaveValue(
+      "Backend developer",
     );
+    fireEvent.change(screen.getByRole("textbox", { name: "I want to" }), {
+      target: { value: "Build content APIs" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
     await waitFor(() =>
       expect(localStorage.getItem("l5asly-viewer-profile")).toContain(
@@ -147,24 +151,26 @@ describe("Summary workflow", () => {
     vi.stubGlobal("fetch", fetchMock);
     renderUi(<SummaryForm />);
     expect(
-      screen.getByRole("link", { name: "Edit profile" }),
-    ).toBeInTheDocument();
-    fireEvent.change(screen.getByRole("textbox", { name: "Video URL" }), {
+      screen.getByRole("link", { name: "Profile Backend developer" }),
+    ).toHaveAttribute("href", "/profile");
+    fireEvent.change(screen.getByRole("textbox", { name: "Video" }), {
       target: { value: "https://example.com/video.mp4" },
     });
-    fireEvent.mouseDown(
-      screen.getByRole("combobox", { name: "Video language" }),
-    );
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: /^Spoken in/ }));
     expect(screen.getAllByRole("option")).toHaveLength(2);
     fireEvent.click(screen.getByRole("option", { name: "Arabic" }));
-    fireEvent.click(screen.getByRole("button", { name: "Create summary" }));
+    // The brief follows the spoken language until it is chosen separately.
+    expect(
+      screen.getByRole("combobox", { name: /^Brief in/ }),
+    ).toHaveTextContent("Arabic");
+    fireEvent.click(screen.getByRole("button", { name: "Summarize" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
     const body = fetchMock.mock.calls[0]?.[1]?.body;
     if (typeof body !== "string")
       throw new Error("Expected a JSON summary request.");
     expect(JSON.parse(body)).toMatchObject({
       sourceLanguage: "Arabic",
-      language: "English",
+      language: "Arabic",
       viewerProfile: {
         goals: "Build content APIs",
         knowledge: "SQL and JavaScript",
@@ -181,9 +187,31 @@ describe("Summary workflow", () => {
     );
     expect(localStorage.getItem("l5asly-viewer-profile")).toBeNull();
     // The rest of the page is hidden from assistive tech until the dialog closes.
+    expect(await screen.findByRole("textbox", { name: "I am" })).toHaveValue(
+      "",
+    );
+  });
+
+  it("keeps a brief language chosen separately from the spoken language", () => {
+    renderUi(<SummaryForm />);
+    chooseSetting(/^Brief in/, "Arabic");
+    chooseSetting(/^Spoken in/, "Arabic");
+    chooseSetting(/^Spoken in/, "English");
     expect(
-      await screen.findByRole("textbox", { name: "Role or background" }),
-    ).toHaveValue("");
+      screen.getByRole("combobox", { name: /^Brief in/ }),
+    ).toHaveTextContent("Arabic");
+  });
+
+  it("opens the depth setting as a Material menu", () => {
+    renderUi(<SummaryForm />);
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: /^Depth/ }));
+    expect(
+      screen.getAllByRole("option").map((option) => option.textContent),
+    ).toEqual(["Quick read", "Detailed", "Study notes"]);
+    fireEvent.click(screen.getByRole("option", { name: "Study notes" }));
+    expect(
+      screen.getByRole("combobox", { name: /^Depth/ }),
+    ).toHaveTextContent("Study notes");
   });
 
   it("warns about corrupted profile storage without breaking the summary form", () => {
@@ -192,9 +220,7 @@ describe("Summary workflow", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Your saved profile could not be read",
     );
-    expect(
-      screen.getByRole("button", { name: "Create summary" }),
-    ).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Summarize" })).toBeEnabled();
   });
 
   it("starts with the link field and validates a missing link", async () => {
@@ -202,37 +228,37 @@ describe("Summary workflow", () => {
     vi.stubGlobal("fetch", fetchMock);
     renderUi(<SummaryForm />);
 
-    expect(
-      screen.getByRole("button", { name: "Paste a link" }),
-    ).toHaveAttribute("aria-pressed", "true");
-    expect(
-      screen.getByRole("textbox", { name: "Video URL" }),
-    ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Create summary" }));
+    expect(screen.getByRole("textbox", { name: "Video" })).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "What you get" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Summarize" }));
 
     expect(
       await screen.findByText(
         "Enter a YouTube link or complete HTTP/HTTPS video URL.",
       ),
     ).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Video" })).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("validates a missing file without sending a request", async () => {
-    const fetchMock = vi.fn<typeof fetch>();
-    vi.stubGlobal("fetch", fetchMock);
+  it("removes a chosen file and returns to the link field", () => {
     renderUi(<SummaryForm />);
-
+    fireEvent.change(screen.getByLabelText("Choose a video or audio file"), {
+      target: {
+        files: [new File(["video"], "example.mp4", { type: "video/mp4" })],
+      },
+    });
     expect(
-      screen.getByRole("button", { name: "Advanced options" }),
-    ).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(screen.getByRole("button", { name: "Upload video" }));
-    fireEvent.click(screen.getByRole("button", { name: "Create summary" }));
+      screen.queryByRole("textbox", { name: "Video" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("example.mp4")).toBeInTheDocument();
 
-    expect(
-      await screen.findByText("Choose a video or audio file."),
-    ).toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Remove file" }));
+    expect(screen.getByRole("textbox", { name: "Video" })).toBeInTheDocument();
+    expect(screen.queryByText("example.mp4")).not.toBeInTheDocument();
   });
 
   it("submits a URL with the current question and default options", async () => {
@@ -247,14 +273,13 @@ describe("Summary workflow", () => {
       </Routes>,
     );
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Video URL" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Video" }), {
       target: { value: "https://youtu.be/-xbzGngfQEw" },
     });
-    fireEvent.change(
-      screen.getByRole("textbox", { name: "Your question (optional)" }),
-      { target: { value: "Is this useful?" } },
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Create summary" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "I want to know" }), {
+      target: { value: "Is this useful?" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Summarize" }));
 
     expect(await screen.findByText("Job created")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith("/api/summaries/url", {
@@ -270,7 +295,7 @@ describe("Summary workflow", () => {
     });
   });
 
-  it("runs a quick check for a YouTube link and hides it once the link changes", async () => {
+  it("runs a quick check once a YouTube link is pasted and hides it once the link changes", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json({
         data: {
@@ -295,19 +320,23 @@ describe("Summary workflow", () => {
     vi.stubGlobal("fetch", fetchMock);
     renderUi(<SummaryForm />);
 
-    expect(
-      screen.queryByRole("button", { name: "Quick check" }),
-    ).not.toBeInTheDocument();
-    const urlField = screen.getByRole("textbox", { name: "Video URL" });
+    const urlField = screen.getByRole("textbox", { name: "Video" });
+    fireEvent.change(urlField, {
+      target: { value: "https://example.com/video.mp4" },
+    });
     fireEvent.change(urlField, {
       target: { value: "https://youtu.be/-xbzGngfQEw" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Quick check" }));
 
     expect(await screen.findByText("Likely skip")).toBeInTheDocument();
     expect(
       screen.getByText("Doesn't answer your question"),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: "Verdict: Brief is enough" }),
+    ).toBeInTheDocument();
+    // Only the YouTube link is checked, once the viewer stops typing.
+    expect(fetchMock).toHaveBeenCalledOnce();
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/summaries/precheck",
       expect.objectContaining({ method: "POST" }),
@@ -323,11 +352,11 @@ describe("Summary workflow", () => {
     const fetchMock = vi.fn<typeof fetch>();
     vi.stubGlobal("fetch", fetchMock);
     renderUi(<SummaryForm />);
-    fireEvent.click(screen.getByRole("button", { name: "Upload video" }));
-    const input = screen.getByLabelText("Choose a video or audio file");
+    const form = screen.getByRole("form", { name: "Summarize a video" });
 
-    fireEvent.change(input, {
-      target: {
+    fireEvent.drop(form, {
+      dataTransfer: {
+        types: ["Files"],
         files: [new File(["%PDF"], "notes.pdf", { type: "application/pdf" })],
       },
     });
@@ -337,12 +366,14 @@ describe("Summary workflow", () => {
 
     const largeVideo = new File(["video"], "long.mp4", { type: "video/mp4" });
     Object.defineProperty(largeVideo, "size", { value: 2 * 1024 ** 3 });
-    fireEvent.change(input, { target: { files: [largeVideo] } });
+    fireEvent.change(screen.getByLabelText("Choose a video or audio file"), {
+      target: { files: [largeVideo] },
+    });
     expect(
       await screen.findByText(/This file is larger than 1 GB/),
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Create summary" }));
+    fireEvent.click(screen.getByRole("button", { name: "Summarize" }));
     await waitFor(() =>
       expect(screen.getByText(/This file is larger than 1 GB/)).toBeVisible(),
     );
@@ -357,12 +388,11 @@ describe("Summary workflow", () => {
     renderUi(<SummaryForm />);
     const file = new File(["video"], "example.mp4", { type: "video/mp4" });
 
-    fireEvent.click(screen.getByRole("button", { name: "Upload video" }));
     fireEvent.change(screen.getByLabelText("Choose a video or audio file"), {
       target: { files: [file] },
     });
     expect(screen.getByText("example.mp4")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Create summary" }));
+    fireEvent.click(screen.getByRole("button", { name: "Summarize" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
     const request = fetchMock.mock.calls[0]?.[1];

@@ -209,6 +209,7 @@ function SummaryJobView({ summaryId }: { summaryId: string }) {
       result={job.result}
       source={job.source}
       requestedLanguage={job.options.language}
+      expectation={job.options.expectation}
     />
   );
 }

@@ -40,14 +40,11 @@ describe("App", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { name: "Summarize a video" }),
+      await screen.findByRole("heading", { name: "Is this video worth your time?" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Create summary" }),
+      screen.getByRole("button", { name: "Summarize" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Paste a link" }),
-    ).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByRole("tab", { name: "Library" }));
     expect(
       await screen.findByRole("heading", { name: "Library" }),
@@ -55,7 +52,7 @@ describe("App", () => {
     expect(await screen.findByText("No summaries yet")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: "Summarize" }));
     expect(
-      await screen.findByRole("heading", { name: "Summarize a video" }),
+      await screen.findByRole("heading", { name: "Is this video worth your time?" }),
     ).toBeInTheDocument();
   });
 });

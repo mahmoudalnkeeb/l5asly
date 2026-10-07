@@ -37,22 +37,6 @@ export function SummaryPanel({ result, onSelectTime }: SummaryPanelProps) {
       }}
     >
       <Box component="article" sx={{ minWidth: 0 }}>
-        <Paper sx={{ p: 3, mb: 4, bgcolor: "var(--accent)" }}>
-          <Typography variant="h3" color="primary">
-            Direct answer
-          </Typography>
-          <Typography
-            {...getContentProps(result.viewerAnswer)}
-            sx={{
-              mt: 1,
-              fontSize: "1.25rem",
-              fontWeight: 500,
-              lineHeight: 1.6,
-            }}
-          >
-            {result.viewerAnswer}
-          </Typography>
-        </Paper>
         {guidance ? (
           <Box
             component="section"
@@ -201,9 +185,17 @@ export function SummaryPanel({ result, onSelectTime }: SummaryPanelProps) {
           </Alert>
         ) : null}
       </Box>
-      <Box
+      <Paper
+        variant="outlined"
         component="aside"
-        sx={{ position: { md: "sticky" }, top: 88, minWidth: 0 }}
+        sx={{
+          position: { md: "sticky" },
+          top: 88,
+          minWidth: 0,
+          p: 2.5,
+          // Keeps the hover state of each moment inside the card.
+          overflow: "hidden",
+        }}
       >
         <Typography variant="h3" id={momentsTitleId}>
           Recommended moments
@@ -263,7 +255,7 @@ export function SummaryPanel({ result, onSelectTime }: SummaryPanelProps) {
             No specific moments identified.
           </Typography>
         ) : null}
-      </Box>
+      </Paper>
     </Box>
   );
 }

@@ -1,6 +1,7 @@
 import {
   Box,
   Button,
+  Chip,
   Container,
   CircularProgress,
   Alert,
@@ -14,13 +15,18 @@ import {
   Stepper,
   Typography,
 } from "@mui/material";
+import { useQueryClient } from "@tanstack/react-query";
+import ArrowBack from "@mui/icons-material/ArrowBack";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import type { SummaryJob } from "@l5sly/contracts";
+import type { PrecheckResult, SummaryJob } from "@l5sly/contracts";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { formatTimestamp } from "./format";
+import { getLeadCardShadow } from "@/components/material-theme";
+import { formatTimestamp, getContentProps } from "./format";
 import { JOB_STEPS } from "./job-steps";
+import { getPrecheckQueryKey } from "./precheck-query";
 import { SourceDetails } from "./source-details";
+import { VerdictScale } from "./verdict-insights";
 
 interface ProcessingStateProps {
   job: SummaryJob;
@@ -42,8 +48,22 @@ export function ProcessingState({
   );
 
   return (
-    <Container maxWidth="sm" sx={{ py: { xs: 4, sm: 8 } }}>
-      <Paper variant="outlined" sx={{ p: { xs: 3, sm: 4 } }}>
+    <Container maxWidth="sm" sx={{ py: { xs: 4, sm: 6 } }}>
+      <Button
+        component={Link}
+        to="/library"
+        startIcon={<ArrowBack />}
+        sx={{ mb: 2, ml: -1.25 }}
+      >
+        Library
+      </Button>
+      <Paper
+        variant="outlined"
+        sx={(theme) => ({
+          p: { xs: 3, sm: 4 },
+          boxShadow: getLeadCardShadow(theme.palette.mode),
+        })}
+      >
         <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
           <CircularProgress
             size={32}
@@ -115,11 +135,9 @@ export function ProcessingState({
         <Typography variant="body2" color="text.secondary">
           You can leave this page and return to this job from Library.
         </Typography>
-        <Stack direction="row" sx={{ mt: 3, justifyContent: "space-between" }}>
-          <Button component={Link} to="/library" variant="outlined">
-            Go to library
-          </Button>
+        <Stack direction="row" sx={{ mt: 3, justifyContent: "flex-end" }}>
           <Button
+            variant="outlined"
             color="error"
             onClick={() => setIsConfirmingCancel(true)}
             disabled={isCancelling}
@@ -139,7 +157,90 @@ export function ProcessingState({
         onConfirm={onCancel}
         onClose={() => setIsConfirmingCancel(false)}
       />
+      <Stack spacing={2} sx={{ mt: 3 }}>
+        <ProvisionalVerdict job={job} />
+        {job.options.expectation ? (
+          <Paper
+            variant="outlined"
+            sx={{
+              px: 3,
+              py: 2,
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", sm: "112px minmax(0, 1fr)" },
+              columnGap: 1.5,
+            }}
+          >
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{ fontWeight: 600 }}
+            >
+              You asked
+            </Typography>
+            <Typography
+              variant="body2"
+              {...getContentProps(job.options.expectation)}
+            >
+              {job.options.expectation}
+            </Typography>
+          </Paper>
+        ) : null}
+      </Stack>
     </Container>
+  );
+}
+
+// Shows the quick check's verdict, when this browser ran one for the same link
+// and options, so the viewer has an answer while the full summary runs.
+function ProvisionalVerdict({ job }: { job: SummaryJob }) {
+  const queryClient = useQueryClient();
+  if (job.source.type !== "youtube") {
+    return null;
+  }
+  const precheck = queryClient.getQueryData<PrecheckResult>(
+    getPrecheckQueryKey({
+      url: job.source.url,
+      language: job.options.language,
+      expectation: job.options.expectation,
+    }),
+  );
+  if (!precheck) {
+    return null;
+  }
+
+  return (
+    <Paper
+      variant="outlined"
+      component="section"
+      aria-label="Provisional verdict"
+      sx={{ p: 3, display: "grid", gap: 1.5 }}
+    >
+      <Stack
+        direction="row"
+        sx={{ justifyContent: "space-between", alignItems: "center", gap: 1 }}
+      >
+        <Typography variant="h3">While you wait</Typography>
+        <Chip size="small" variant="outlined" label="Provisional" />
+      </Stack>
+      <VerdictScale
+        recommendation={precheck.verdict.recommendation}
+        isProvisional
+      />
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        {...getContentProps(precheck.verdict.reason)}
+      >
+        <Box component="strong" sx={{ color: "text.primary" }}>
+          {precheck.verdict.headline}.
+        </Box>{" "}
+        {precheck.verdict.reason}
+      </Typography>
+      <Typography variant="caption" color="text.secondary">
+        From the quick check of the title and chapters. The final verdict
+        replaces this once the transcript is read.
+      </Typography>
+    </Paper>
   );
 }
 

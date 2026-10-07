@@ -1,26 +1,23 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
   Alert,
   Box,
   Button,
   CircularProgress,
+  FormHelperText,
+  IconButton,
+  InputBase,
   MenuItem,
   Paper,
+  Select,
   Stack,
-  TextField,
-  ToggleButton,
-  ToggleButtonGroup,
   Typography,
 } from "@mui/material";
-import ExpandMore from "@mui/icons-material/ExpandMore";
-import LinkOutlined from "@mui/icons-material/LinkOutlined";
+import CloseOutlined from "@mui/icons-material/CloseOutlined";
+import InsertDriveFileOutlined from "@mui/icons-material/InsertDriveFileOutlined";
 import LockOutlined from "@mui/icons-material/LockOutlined";
-import UploadFileOutlined from "@mui/icons-material/UploadFileOutlined";
-import { useId } from "react";
+import { useEffect, useId, useState, type DragEvent } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
 import { z } from "zod";
@@ -36,6 +33,13 @@ import {
   type SummaryOptions,
   type ViewerProfile,
 } from "@l5sly/contracts";
+import {
+  Composer,
+  ComposerCounter,
+  ComposerLine,
+  ComposerStrip,
+  composerInputSx,
+} from "@/components/composer";
 import { useNotification } from "@/components/notifications";
 import { useViewerProfile } from "@/features/profile/viewer-profile";
 import {
@@ -45,11 +49,14 @@ import {
   precheckVideo,
 } from "@/lib/api-client";
 import { PrecheckResult } from "./precheck-result";
-import { UploadDropzone } from "./upload-dropzone";
+import { getPrecheckQueryKey } from "./precheck-query";
 
 // Matches the API's default MAX_UPLOAD_MB, so oversized files are rejected
 // before a long upload rather than after it.
 const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024;
+
+// Waits for the viewer to stop typing or pasting before asking for a quick check.
+const PRECHECK_DELAY_MS = 500;
 
 // The file picker filters by type, but drag and drop does not. Some systems
 // report no type for valid containers such as .mkv; the server checks those.
@@ -110,16 +117,26 @@ const formSchema = z
 
 type SummaryFormValues = z.infer<typeof formSchema>;
 
-// Both form columns open with a header row of this height so the upload box
-// and the question field below them start on the same line.
-const FORM_HEADER_HEIGHT = 48;
-
 // A short public English clip used by "Try a sample".
 const SAMPLE_MEDIA_URL =
   "https://static.deepgram.com/examples/Bueller-Life-moves-pretty-fast.wav";
 
+
 function hasProfileContent(profile: ViewerProfile): boolean {
   return Object.values(profile).some((field) => field.trim() !== "");
+}
+
+// A few words from the saved background, so the profile token shows whose
+// profile the brief will be written for.
+function describeProfile(profile: ViewerProfile): string {
+  const firstClause = profile.background.split(/[.,;\n]/)[0]?.trim() ?? "";
+  if (!firstClause) {
+    return "Saved";
+  }
+  const withoutArticle = firstClause.replace(/^(i am|i'm|a|an)\s+/i, "");
+  return withoutArticle.length > 32
+    ? `${withoutArticle.slice(0, 31).trimEnd()}…`
+    : withoutArticle;
 }
 
 function toOptionalText(text: string | undefined): string | undefined {
@@ -156,11 +173,14 @@ function startSummary(
   return createUrlSummary({ url: values.url, ...options });
 }
 
-const depthDescriptions = {
-  quick: "Key points and recommended moments.",
-  detailed: "More context and supporting notes.",
-  study: "A full brief for review and reference.",
-} as const;
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(timer);
+  }, [value, delayMs]);
+  return debounced;
+}
 
 export function SummaryForm() {
   const navigate = useNavigate();
@@ -169,7 +189,14 @@ export function SummaryForm() {
   const { profile, storageError } = useViewerProfile();
   const viewerProfile =
     profile && hasProfileContent(profile) ? profile : undefined;
-  const advancedOptionsId = useId();
+  const urlInputId = useId();
+  const questionInputId = useId();
+  const fileInputId = useId();
+  const sourceErrorId = useId();
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  // The question is sent with the quick check once the viewer leaves the
+  // field, rather than on every keystroke.
+  const [checkedExpectation, setCheckedExpectation] = useState("");
   const form = useForm<SummaryFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -181,12 +208,12 @@ export function SummaryForm() {
       url: "",
     },
   });
-  const sourceType = form.watch("sourceType");
   const expectation = form.watch("expectation") ?? "";
-  const depth = form.watch("depth");
+  const language = form.watch("language");
   const url = form.watch("url")?.trim() ?? "";
-  const fileName = form.watch("file")?.name;
-  const canPrecheck = sourceType === "url" && isYouTubeUrl(url);
+  const file = form.watch("file");
+  const sourceError =
+    form.formState.errors.url?.message ?? form.formState.errors.file?.message;
 
   const createSummary = useMutation({
     mutationFn: (values: SummaryFormValues) =>
@@ -201,312 +228,93 @@ export function SummaryForm() {
   });
 
   // Fast verdict from public metadata; no job is created and nothing is downloaded.
-  const precheck = useMutation({
-    mutationFn: (videoUrl: string) =>
-      precheckVideo({
-        url: videoUrl,
-        language: form.getValues("language"),
-        viewerProfile,
-        expectation: toOptionalText(form.getValues("expectation")),
-      }),
+  const checkedUrl = useDebouncedValue(url, PRECHECK_DELAY_MS);
+  const canPrecheck = !file && isYouTubeUrl(checkedUrl);
+  const precheckInput = {
+    url: checkedUrl,
+    language,
+    expectation: toOptionalText(checkedExpectation),
+  };
+  const precheck = useQuery({
+    queryKey: getPrecheckQueryKey(precheckInput),
+    queryFn: () => precheckVideo({ ...precheckInput, viewerProfile }),
+    enabled: canPrecheck,
+    staleTime: Infinity,
+    retry: false,
   });
-  // Hide an earlier result once the link is edited.
-  const isPrecheckForCurrentUrl = precheck.variables === url;
+  // Hide an earlier result as soon as the link is edited.
+  const showPrecheck = canPrecheck && checkedUrl === url;
 
-  function selectSource(value: unknown): void {
-    if (value !== "upload" && value !== "url") return;
-    form.setValue("sourceType", value);
+  const submit = form.handleSubmit((values) => createSummary.mutate(values));
+
+  function selectFile(selected: File | undefined): void {
+    if (!selected) return;
+    form.setValue("sourceType", "upload");
+    form.setValue("file", selected, { shouldValidate: true });
+    form.clearErrors("url");
+  }
+
+  function removeFile(): void {
+    form.setValue("sourceType", "url");
+    form.setValue("file", undefined);
     form.clearErrors(["file", "url"]);
   }
 
-  function handleFile(file: File | undefined): void {
-    form.setValue("file", file, { shouldValidate: true });
+  function trySample(): void {
+    removeFile();
+    form.setValue("sourceLanguage", "English");
+    form.setValue("url", SAMPLE_MEDIA_URL);
+    void submit();
   }
 
-  function trySample(): void {
-    form.setValue("sourceLanguage", "English");
-    form.setValue("sourceType", "url");
-    form.setValue("url", SAMPLE_MEDIA_URL);
-    void form.handleSubmit((values) => createSummary.mutate(values))();
+  function handleDragOver(event: DragEvent<HTMLElement>): void {
+    if (!event.dataTransfer.types.includes("Files")) return;
+    event.preventDefault();
+    setIsDraggingFile(true);
+  }
+
+  function handleDragLeave(event: DragEvent<HTMLElement>): void {
+    // dragleave also fires when the pointer moves onto a child element.
+    const enteredChild =
+      event.relatedTarget instanceof Node &&
+      event.currentTarget.contains(event.relatedTarget);
+    if (!enteredChild) setIsDraggingFile(false);
+  }
+
+  function handleDrop(event: DragEvent<HTMLElement>): void {
+    if (!event.dataTransfer.types.includes("Files")) return;
+    event.preventDefault();
+    setIsDraggingFile(false);
+    selectFile(event.dataTransfer.files[0]);
   }
 
   return (
-    <Paper variant="outlined" sx={{ p: { xs: 2.5, sm: 4 } }}>
-      <Box
-        component="form"
-        noValidate
-        onSubmit={form.handleSubmit((values) => createSummary.mutate(values))}
-      >
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: {
-              xs: "minmax(0, 1fr)",
-              md: "repeat(2, minmax(0, 1fr))",
-            },
-            gap: { xs: 3, md: 5 },
-            alignItems: "start",
-          }}
-        >
-          <Stack
-            component="section"
-            aria-label="Video input"
-            spacing={3}
-            sx={{ minWidth: 0 }}
-          >
-            <ToggleButtonGroup
-              exclusive
-              value={sourceType}
-              onChange={(_, value: unknown) => selectSource(value)}
-              aria-label="Video source"
-              sx={{
-                alignSelf: "flex-start",
-                height: FORM_HEADER_HEIGHT,
-                width: { xs: "100%", sm: "auto" },
-              }}
-            >
-              <ToggleButton
-                value="url"
-                sx={{
-                  gap: 1,
-                  px: { xs: 1.5, sm: 2.5 },
-                  whiteSpace: "nowrap",
-                  flex: { xs: 1, sm: "initial" },
-                }}
-              >
-                <LinkOutlined fontSize="small" />
-                Paste a link
-              </ToggleButton>
-              <ToggleButton
-                value="upload"
-                sx={{
-                  gap: 1,
-                  px: { xs: 1.5, sm: 2.5 },
-                  whiteSpace: "nowrap",
-                  flex: { xs: 1, sm: "initial" },
-                }}
-              >
-                <UploadFileOutlined fontSize="small" />
-                Upload video
-              </ToggleButton>
-            </ToggleButtonGroup>
+    <Box
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      sx={{
+        position: "relative",
+        display: "grid",
+        justifyItems: "center",
+        gap: 3,
+        width: "100%",
+        maxWidth: 760,
+        mx: "auto",
+      }}
+    >
+      {storageError ? (
+        <Alert severity="warning" sx={{ width: "100%" }}>
+          {storageError}
+        </Alert>
+      ) : null}
 
-            {/* Links are the main way in; uploading a file is the alternative. */}
-            {sourceType === "url" ? (
-              <Controller
-                control={form.control}
-                name="url"
-                render={({ field, fieldState }) => (
-                  <TextField
-                    {...field}
-                    label="Video URL"
-                    type="url"
-                    placeholder="https://youtube.com/watch?v=…"
-                    autoComplete="off"
-                    slotProps={{ htmlInput: { spellCheck: false } }}
-                    error={Boolean(fieldState.error)}
-                    helperText={
-                      fieldState.error?.message ??
-                      "YouTube or a public video/audio link."
-                    }
-                  />
-                )}
-              />
-            ) : (
-              <UploadDropzone
-                fileName={fileName}
-                errorMessage={form.formState.errors.file?.message}
-                onFileChange={handleFile}
-              />
-            )}
-
-            <Controller
-              control={form.control}
-              name="sourceLanguage"
-              render={({ field, fieldState }) => (
-                <TextField
-                  {...field}
-                  select
-                  label="Video language"
-                  error={Boolean(fieldState.error)}
-                  helperText={
-                    fieldState.error?.message ??
-                    "Choose the spoken language. The transcript stays in that language."
-                  }
-                >
-                  {SUMMARY_LANGUAGES.map((language) => (
-                    <MenuItem key={language} value={language}>
-                      {language}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              )}
-            />
-            <Stack
-              direction="row"
-              spacing={1}
-              sx={{ color: "text.secondary", alignItems: "center" }}
-            >
-              <LockOutlined sx={{ fontSize: 16 }} />
-              <Typography variant="caption">
-                Media is deleted after successful processing. Failed-job media
-                is available for retries for 24 hours. Deleting the job removes
-                its retained media.
-              </Typography>
-            </Stack>
-          </Stack>
-          <Stack
-            component="section"
-            aria-label="Summary preferences"
-            spacing={3}
-            sx={{ minWidth: 0 }}
-          >
-            {storageError ? (
-              <Alert severity="warning">{storageError}</Alert>
-            ) : null}
-            <Stack
-              direction="row"
-              sx={{
-                minHeight: FORM_HEADER_HEIGHT,
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 1,
-              }}
-            >
-              <Typography variant="body2" color="text.secondary">
-                {viewerProfile
-                  ? "Using your saved background, knowledge and goals."
-                  : "Add your background and goals for a tailored summary."}
-              </Typography>
-              <Button
-                component={Link}
-                to="/profile"
-                size="small"
-                sx={{ flexShrink: 0 }}
-              >
-                {viewerProfile ? "Edit profile" : "Set up profile"}
-              </Button>
-            </Stack>
-            <Controller
-              control={form.control}
-              name="expectation"
-              render={({ field, fieldState }) => (
-                <TextField
-                  {...field}
-                  multiline
-                  minRows={3}
-                  label="Your question (optional)"
-                  placeholder="e.g. Is this worth watching for a backend developer?"
-                  error={Boolean(fieldState.error)}
-                  slotProps={{
-                    htmlInput: {
-                      maxLength: MAX_EXPECTATION_LENGTH,
-                      dir: "auto",
-                    },
-                  }}
-                  helperText={
-                    <Box
-                      component="span"
-                      sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 2,
-                      }}
-                    >
-                      <span>
-                        {fieldState.error?.message ??
-                          "We'll prioritize this in your summary."}
-                      </span>
-                      <span>
-                        {expectation.length} / {MAX_EXPECTATION_LENGTH}
-                      </span>
-                    </Box>
-                  }
-                />
-              )}
-            />
-
-            <Accordion>
-              <AccordionSummary
-                expandIcon={<ExpandMore />}
-                aria-controls={`${advancedOptionsId}-content`}
-                id={`${advancedOptionsId}-heading`}
-              >
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  Advanced options
-                </Typography>
-              </AccordionSummary>
-              <AccordionDetails id={`${advancedOptionsId}-content`}>
-                <Box
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
-                    gap: 3,
-                  }}
-                >
-                  <Controller
-                    control={form.control}
-                    name="language"
-                    render={({ field, fieldState }) => (
-                      <TextField
-                        {...field}
-                        select
-                        label="Summary language"
-                        error={Boolean(fieldState.error)}
-                        helperText={
-                          fieldState.error?.message ??
-                          "Written summary language; independent of the video."
-                        }
-                      >
-                        {SUMMARY_LANGUAGES.map((language) => (
-                          <MenuItem key={language} value={language}>
-                            {language}
-                          </MenuItem>
-                        ))}
-                      </TextField>
-                    )}
-                  />
-                  <Controller
-                    control={form.control}
-                    name="depth"
-                    render={({ field, fieldState }) => (
-                      <TextField
-                        {...field}
-                        select
-                        label="Summary depth"
-                        error={Boolean(fieldState.error)}
-                        helperText={
-                          fieldState.error?.message ?? depthDescriptions[depth]
-                        }
-                      >
-                        <MenuItem value="quick">Quick read</MenuItem>
-                        <MenuItem value="detailed">Detailed</MenuItem>
-                        <MenuItem value="study">Study notes</MenuItem>
-                      </TextField>
-                    )}
-                  />
-                </Box>
-              </AccordionDetails>
-            </Accordion>
-
-            {createSummary.isError ? (
-              <Alert severity="error">
-                {getErrorMessage(createSummary.error)}
-              </Alert>
-            ) : null}
-
-            {canPrecheck && isPrecheckForCurrentUrl && precheck.isSuccess ? (
-              <PrecheckResult result={precheck.data} />
-            ) : null}
-            {canPrecheck && isPrecheckForCurrentUrl && precheck.isError ? (
-              <Alert severity="error">{getErrorMessage(precheck.error)}</Alert>
-            ) : null}
-
-            <Stack
-              direction={{ xs: "column", sm: "row" }}
-              spacing={1.5}
-              sx={{ alignItems: { sm: "center" } }}
-            >
+      <Box sx={{ width: "100%" }}>
+        <Composer onSubmit={submit} ariaLabel="Summarize a video">
+          <ComposerLine
+            label={file ? "File" : "Video"}
+            htmlFor={file ? undefined : urlInputId}
+            action={
               <Button
                 type="submit"
                 variant="contained"
@@ -518,34 +326,469 @@ export function SummaryForm() {
                   ) : undefined
                 }
               >
-                {createSummary.isPending ? "Starting…" : "Create summary"}
+                {createSummary.isPending ? "Starting…" : "Summarize"}
               </Button>
-              {canPrecheck ? (
-                <Button
-                  variant="outlined"
-                  size="large"
-                  onClick={() => precheck.mutate(url)}
-                  disabled={precheck.isPending || createSummary.isPending}
-                  startIcon={
-                    precheck.isPending ? (
-                      <CircularProgress size={18} color="inherit" />
-                    ) : undefined
+            }
+          >
+            {file ? (
+              <SelectedFile name={file.name} onRemove={removeFile} />
+            ) : (
+              <Controller
+                control={form.control}
+                name="url"
+                render={({ field, fieldState }) => (
+                  <InputBase
+                    {...field}
+                    id={urlInputId}
+                    type="url"
+                    placeholder="Paste a YouTube or video link"
+                    autoComplete="off"
+                    error={Boolean(fieldState.error)}
+                    inputProps={{
+                      spellCheck: false,
+                      "aria-invalid": fieldState.error ? true : undefined,
+                      "aria-describedby": fieldState.error
+                        ? sourceErrorId
+                        : undefined,
+                    }}
+                    sx={composerInputSx}
+                  />
+                )}
+              />
+            )}
+          </ComposerLine>
+
+          <ComposerLine
+            label="I want to know"
+            htmlFor={questionInputId}
+            alignTop
+            aside={
+              <ComposerCounter
+                length={expectation.length}
+                maxLength={MAX_EXPECTATION_LENGTH}
+              />
+            }
+          >
+            <Controller
+              control={form.control}
+              name="expectation"
+              render={({ field }) => (
+                <InputBase
+                  {...field}
+                  id={questionInputId}
+                  multiline
+                  maxRows={4}
+                  placeholder="e.g. Is this worth watching for a backend developer? (optional)"
+                  onBlur={() => {
+                    field.onBlur();
+                    setCheckedExpectation(field.value ?? "");
+                  }}
+                  inputProps={{ maxLength: MAX_EXPECTATION_LENGTH, dir: "auto" }}
+                  sx={composerInputSx}
+                />
+              )}
+            />
+          </ComposerLine>
+
+          <ComposerStrip>
+            <Controller
+              control={form.control}
+              name="sourceLanguage"
+              render={({ field }) => (
+                <SettingToken
+                  label="Spoken in"
+                  value={field.value}
+                  options={LANGUAGE_OPTIONS}
+                  onChange={(value) => {
+                    const spokenLanguage = summaryLanguageSchema.parse(value);
+                    field.onChange(spokenLanguage);
+                    // The brief follows the video's language until the
+                    // viewer picks a brief language of their own.
+                    if (!form.getFieldState("language").isDirty) {
+                      form.setValue("language", spokenLanguage);
+                    }
+                  }}
+                />
+              )}
+            />
+            <Controller
+              control={form.control}
+              name="language"
+              render={({ field }) => (
+                <SettingToken
+                  label="Brief in"
+                  value={field.value}
+                  options={LANGUAGE_OPTIONS}
+                  onChange={(value) =>
+                    field.onChange(summaryLanguageSchema.parse(value))
                   }
-                >
-                  {precheck.isPending ? "Checking…" : "Quick check"}
-                </Button>
-              ) : null}
-              <Button
-                variant="text"
-                onClick={trySample}
-                disabled={createSummary.isPending}
+                />
+              )}
+            />
+            <Controller
+              control={form.control}
+              name="depth"
+              render={({ field }) => (
+                <SettingToken
+                  label="Depth"
+                  value={field.value}
+                  options={DEPTH_OPTIONS}
+                  onChange={(value) =>
+                    field.onChange(summaryDepthSchema.parse(value))
+                  }
+                />
+              )}
+            />
+            <Button
+              component={Link}
+              to="/profile"
+              size="small"
+              sx={{
+                ...tokenSx,
+                minHeight: 0,
+                py: 0.5,
+                pr: 1.5,
+                fontWeight: 500,
+                color: "text.secondary",
+                "&:hover": { bgcolor: "background.paper", borderColor: "text.secondary" },
+              }}
+            >
+              Profile{" "}
+              <Box
+                component="span"
+                sx={{ color: "primary.main", fontWeight: 600 }}
               >
-                Try a sample
-              </Button>
-            </Stack>
-          </Stack>
-        </Box>
+                {viewerProfile ? describeProfile(viewerProfile) : "Set up"}
+              </Box>
+            </Button>
+          </ComposerStrip>
+        </Composer>
+        {sourceError ? (
+          <FormHelperText id={sourceErrorId} error sx={{ mx: 2, mt: 1 }}>
+            {sourceError}
+          </FormHelperText>
+        ) : null}
       </Box>
+
+      <Stack
+        direction="row"
+        sx={{
+          flexWrap: "wrap",
+          justifyContent: "center",
+          alignItems: "center",
+          columnGap: 1.5,
+          rowGap: 0.5,
+          color: "text.secondary",
+          typography: "body2",
+        }}
+      >
+        {/* Phones can't drag files, so they only get the file picker. */}
+        <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
+          or drop a video file anywhere here
+        </Box>
+        <Box
+          component="span"
+          aria-hidden
+          sx={{ display: { xs: "none", sm: "inline" } }}
+        >
+          ·
+        </Box>
+        <Box
+          component="label"
+          htmlFor={fileInputId}
+          sx={{
+            color: "primary.main",
+            fontWeight: 600,
+            cursor: "pointer",
+            textDecoration: "underline",
+            textUnderlineOffset: 3,
+            "&:has(+ input:focus-visible)": {
+              outline: "2px solid",
+              outlineColor: "primary.main",
+              outlineOffset: 2,
+            },
+          }}
+        >
+          choose a file
+        </Box>
+        <input
+          id={fileInputId}
+          aria-label="Choose a video or audio file"
+          className="sr-only"
+          type="file"
+          accept="video/*,audio/*"
+          onChange={(event) => {
+            selectFile(event.target.files?.[0]);
+            // Lets the same file be chosen again after removing it.
+            event.target.value = "";
+          }}
+        />
+        <span aria-hidden>·</span>
+        <Button
+          size="small"
+          onClick={trySample}
+          disabled={createSummary.isPending}
+          sx={{ minHeight: 0, px: 1 }}
+        >
+          Try a sample
+        </Button>
+      </Stack>
+
+      {createSummary.isError ? (
+        <Alert severity="error" sx={{ width: "100%" }}>
+          {getErrorMessage(createSummary.error)}
+        </Alert>
+      ) : null}
+
+      <Box sx={{ width: "100%" }}>
+        {showPrecheck && precheck.isPending ? <PrecheckLoading /> : null}
+        {showPrecheck && precheck.isSuccess ? (
+          <PrecheckResult
+            result={precheck.data}
+            onCreateSummary={() => void submit()}
+            isCreating={createSummary.isPending}
+          />
+        ) : null}
+        {showPrecheck && precheck.isError ? (
+          <Alert severity="error">{getErrorMessage(precheck.error)}</Alert>
+        ) : null}
+        {file ? <UploadNote /> : null}
+        {!file && !showPrecheck ? <WhatYouGet /> : null}
+      </Box>
+
+      <Stack
+        direction="row"
+        spacing={1}
+        sx={{ color: "text.secondary", alignItems: "center", maxWidth: 600 }}
+      >
+        <LockOutlined sx={{ fontSize: 16, flexShrink: 0 }} />
+        <Typography variant="caption">
+          Media is deleted after successful processing. Failed-job media is
+          available for retries for 24 hours. Deleting the job removes its
+          retained media.
+        </Typography>
+      </Stack>
+
+      {isDraggingFile ? <DropOverlay /> : null}
+    </Box>
+  );
+}
+
+const tokenSx = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 0.5,
+  pl: 1.5,
+  pr: 0.5,
+  border: 1,
+  borderColor: "divider",
+  borderRadius: 999,
+  bgcolor: "background.paper",
+  color: "text.secondary",
+  typography: "body2",
+} as const;
+
+interface SettingOption {
+  value: string;
+  label: string;
+}
+
+const LANGUAGE_OPTIONS: SettingOption[] = SUMMARY_LANGUAGES.map(
+  (language) => ({ value: language, label: language }),
+);
+
+const DEPTH_OPTIONS: SettingOption[] = [
+  { value: "quick", label: "Quick read" },
+  { value: "detailed", label: "Detailed" },
+  { value: "study", label: "Study notes" },
+];
+
+interface SettingTokenProps {
+  label: string;
+  value: string;
+  options: SettingOption[];
+  onChange: (value: string) => void;
+}
+
+// A labelled setting on the composer's strip, read as part of the sentence.
+function SettingToken({ label, value, options, onChange }: SettingTokenProps) {
+  const labelId = useId();
+  return (
+    <Box
+      sx={{
+        ...tokenSx,
+        "&:focus-within": { borderColor: "primary.main" },
+      }}
+    >
+      <span id={labelId}>{label}</span>
+      <Select
+        variant="standard"
+        disableUnderline
+        labelId={labelId}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        sx={{
+          typography: "body2",
+          fontWeight: 600,
+          color: "text.primary",
+          "& .MuiSelect-select": { py: 0.5, pl: 0.75, borderRadius: 999 },
+          "& .MuiSelect-select:focus": { bgcolor: "transparent" },
+        }}
+      >
+        {options.map((option) => (
+          <MenuItem key={option.value} value={option.value}>
+            {option.label}
+          </MenuItem>
+        ))}
+      </Select>
+    </Box>
+  );
+}
+
+function SelectedFile({
+  name,
+  onRemove,
+}: {
+  name: string;
+  onRemove: () => void;
+}) {
+  return (
+    <Stack direction="row" spacing={1} sx={{ alignItems: "center", minWidth: 0 }}>
+      <InsertDriveFileOutlined
+        fontSize="small"
+        sx={{ color: "primary.main", flexShrink: 0 }}
+      />
+      <Typography
+        sx={{
+          minWidth: 0,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {name}
+      </Typography>
+      <IconButton size="small" aria-label="Remove file" onClick={onRemove}>
+        <CloseOutlined fontSize="small" />
+      </IconButton>
+    </Stack>
+  );
+}
+
+function PrecheckLoading() {
+  return (
+    <Paper
+      variant="outlined"
+      role="status"
+      sx={{
+        p: 3,
+        display: "flex",
+        gap: 1.5,
+        alignItems: "center",
+        color: "text.secondary",
+      }}
+    >
+      <CircularProgress size={16} color="inherit" />
+      <Typography variant="body2">
+        Checking the title, description and chapters…
+      </Typography>
     </Paper>
+  );
+}
+
+function UploadNote() {
+  return (
+    <Paper variant="outlined" sx={{ p: 3 }}>
+      <Typography variant="body2">
+        Uploads skip the quick check, since a file has no public title or
+        chapter list to read. Summarize to transcribe it and get the full
+        verdict.
+      </Typography>
+    </Paper>
+  );
+}
+
+const PROMISES = [
+  {
+    title: "A verdict in seconds",
+    detail:
+      "Paste a YouTube link to see watch, key moments or skip before you start.",
+  },
+  {
+    title: "A brief that answers you",
+    detail: "Your question first, then what the video actually says.",
+  },
+  {
+    title: "The full transcript",
+    detail: "Timestamped, in the language the video is spoken in.",
+  },
+] as const;
+
+function WhatYouGet() {
+  return (
+    <Box
+      component="ul"
+      aria-label="What you get"
+      sx={{
+        display: "grid",
+        gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
+        gap: 1.5,
+        m: 0,
+        p: 0,
+        listStyle: "none",
+      }}
+    >
+      {PROMISES.map((promise) => (
+        <Box
+          component="li"
+          key={promise.title}
+          sx={{
+            border: "1px dashed",
+            borderColor: "divider",
+            borderRadius: 3,
+            px: 2,
+            py: 1.75,
+          }}
+        >
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            {promise.title}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+            {promise.detail}
+          </Typography>
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
+function DropOverlay() {
+  return (
+    <Box
+      aria-hidden
+      sx={(theme) => ({
+        position: "absolute",
+        inset: -16,
+        zIndex: 2,
+        display: "grid",
+        placeItems: "center",
+        textAlign: "center",
+        border: "2px dashed",
+        borderColor: "primary.main",
+        borderRadius: 3,
+        bgcolor: `color-mix(in srgb, ${theme.palette.background.default} 90%, transparent)`,
+        // The overlay must not swallow the drop or the leave events.
+        pointerEvents: "none",
+      })}
+    >
+      <Box>
+        <Typography variant="h2" color="primary">
+          Drop to summarize
+        </Typography>
+        <Typography color="text.secondary">
+          Video or audio, up to 1 GB
+        </Typography>
+      </Box>
+    </Box>
   );
 }

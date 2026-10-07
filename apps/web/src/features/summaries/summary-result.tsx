@@ -1,4 +1,13 @@
-import { Box, Button, Container, Stack, Tab, Tabs, Typography } from "@mui/material";
+import {
+  Box,
+  Button,
+  Chip,
+  Container,
+  Stack,
+  Tab,
+  Tabs,
+  Typography,
+} from "@mui/material";
 import ArrowBack from "@mui/icons-material/ArrowBack";
 import ContentCopyOutlined from "@mui/icons-material/ContentCopyOutlined";
 import DownloadOutlined from "@mui/icons-material/DownloadOutlined";
@@ -37,7 +46,7 @@ import {
   getSegmentElementId,
   TranscriptPanel,
 } from "./transcript-panel";
-import { VerdictPanel } from "./verdict-insights";
+import { AnswerPanel, verdictStyles } from "./verdict-insights";
 
 // Icon-only on phones so the actions share one row with the back link.
 const compactActionSx = {
@@ -72,15 +81,19 @@ interface SummaryResultProps {
   result: SummaryResultData;
   source: SummarySource;
   requestedLanguage: SummaryLanguage;
+  // The question asked when the job was created, if any.
+  expectation?: string;
 }
 
 export function SummaryResult({
   result,
   source,
   requestedLanguage,
+  expectation,
 }: SummaryResultProps) {
   const notify = useNotification();
   const idPrefix = useId();
+  const verdictStyle = verdictStyles[result.verdict.recommendation];
   // The open tab lives in the URL so a transcript view can be linked to.
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");
@@ -237,6 +250,19 @@ export function SummaryResult({
       </Stack>
 
       <Box component="header" sx={{ mb: 3 }}>
+        <Stack
+          direction="row"
+          sx={{ flexWrap: "wrap", gap: 1, alignItems: "center", mb: 2 }}
+        >
+          <Chip size="small" variant="outlined" color="success" label="Ready" />
+          <Chip
+            size="small"
+            color={verdictStyle.color}
+            icon={verdictStyle.icon}
+            label={verdictStyle.label}
+            sx={{ "& .MuiChip-icon": { fontSize: 16 } }}
+          />
+        </Stack>
         <SourceDetails source={source} />
         <Typography
           variant="h1"
@@ -253,12 +279,16 @@ export function SummaryResult({
           <bdi dir="ltr" className="font-mono">
             {formatTimestamp(result.durationSeconds)}
           </bdi>{" "}
-          · {formatLanguageLabel(result.sourceLanguage, requestedLanguage)}
+          · Spoken in{" "}
+          {formatLanguageLabel(result.sourceLanguage, requestedLanguage)} ·
+          Brief in {requestedLanguage}
         </Typography>
       </Box>
 
-      <VerdictPanel
+      <AnswerPanel
         verdict={result.verdict}
+        viewerAnswer={result.viewerAnswer}
+        expectation={expectation}
         timeline={result.timeline}
         durationSeconds={result.durationSeconds}
         onSelectTime={jumpToTranscript}
