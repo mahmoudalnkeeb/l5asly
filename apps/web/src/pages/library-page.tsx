@@ -424,6 +424,7 @@ function SummaryRow({ summary }: { summary: SummaryListItem }) {
         rowGap: 1.5,
         p: { xs: 2, sm: 3 },
         borderRadius: 0,
+        "&:hover .row-arrow": { transform: "translateX(4px)" },
       }}
     >
       <Box sx={{ minWidth: 0 }}>
@@ -514,11 +515,15 @@ function SummaryRow({ summary }: { summary: SummaryListItem }) {
       <span className="sr-only">{actionLabels[summary.status]}</span>
       <ArrowForward
         fontSize="small"
-        sx={{
+        className="row-arrow"
+        sx={(theme) => ({
           color: "primary.main",
           gridRow: { xs: "1 / span 2", md: "auto" },
           gridColumn: { xs: 2, md: "auto" },
-        }}
+          transition: theme.transitions.create("transform", {
+            duration: theme.transitions.duration.shorter,
+          }),
+        })}
       />
     </ListItemButton>
   );

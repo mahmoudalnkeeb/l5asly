@@ -1,7 +1,9 @@
 import { lazy, Suspense } from "react";
+import { m } from "motion/react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { AppShell } from "@/components/app-shell";
+import { enterAnimation } from "@/components/enter-animation";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Container, Skeleton } from "@mui/material";
 
@@ -40,13 +42,16 @@ export function App() {
             </Container>
           }
         >
-          <Routes>
-            <Route path="/" element={<CreateSummaryPage />} />
-            <Route path="/library" element={<LibraryPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/summaries/:summaryId" element={<SummaryPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          {/* Keyed by path so the entrance replays on every navigation. */}
+          <m.div key={location.pathname} {...enterAnimation}>
+            <Routes>
+              <Route path="/" element={<CreateSummaryPage />} />
+              <Route path="/library" element={<LibraryPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/summaries/:summaryId" element={<SummaryPage />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </m.div>
         </Suspense>
       </ErrorBoundary>
     </AppShell>

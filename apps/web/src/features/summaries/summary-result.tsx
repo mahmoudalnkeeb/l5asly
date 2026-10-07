@@ -19,6 +19,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { m } from "motion/react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import type {
@@ -26,6 +27,7 @@ import type {
   SummaryResult as SummaryResultData,
   SummarySource,
 } from "@l5asly/contracts";
+import { enterAnimation } from "@/components/enter-animation";
 import { useNotification } from "@/components/notifications";
 import {
   formatLanguageLabel,
@@ -202,6 +204,8 @@ export function SummaryResult({
   return (
     <Container
       maxWidth="lg"
+      component={m.div}
+      {...enterAnimation}
       sx={{
         pt: 3,
         pb: 8,
@@ -319,7 +323,10 @@ export function SummaryResult({
       </Tabs>
 
       <Box
+        key={tab}
         role="tabpanel"
+        component={m.div}
+        {...enterAnimation}
         id={getPanelId(tab)}
         aria-labelledby={getTabId(tab)}
       >

@@ -1,7 +1,9 @@
 import { Box, Button, Chip, Paper, Stack, Typography } from "@mui/material";
 import ArrowForward from "@mui/icons-material/ArrowForward";
+import { m } from "motion/react";
 
 import type { PrecheckResult as PrecheckResultData } from "@l5asly/contracts";
+import { enterAnimation } from "@/components/enter-animation";
 import { formatTimestamp, getContentProps } from "./format";
 import { VerdictScale, VerdictSignalChips } from "./verdict-insights";
 
@@ -37,7 +39,8 @@ export function PrecheckResult({
   return (
     <Paper
       variant="outlined"
-      component="section"
+      component={m.section}
+      {...enterAnimation}
       aria-label="Quick check result"
       sx={{ p: { xs: 2.5, sm: 3 }, display: "grid", gap: 2 }}
     >

@@ -8,8 +8,10 @@ import {
   Typography,
 } from "@mui/material";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { m } from "motion/react";
 
 import type { SummaryJob } from "@l5asly/contracts";
+import { enterAnimation } from "@/components/enter-animation";
 import { useNotification } from "@/components/notifications";
 import {
   ProcessingState,
@@ -105,7 +107,12 @@ function SummaryJobView({ summaryId }: { summaryId: string }) {
 
   if (summaryQuery.isError && !summaryQuery.data) {
     return (
-      <Container maxWidth="sm" sx={{ py: 6 }}>
+      <Container
+        maxWidth="sm"
+        component={m.div}
+        {...enterAnimation}
+        sx={{ py: 6 }}
+      >
         <Typography variant="h1">This summary could not be loaded</Typography>
         <Typography color="text.secondary" sx={{ mt: 2 }}>
           Try loading it again before starting over.
@@ -160,7 +167,12 @@ function SummaryJobView({ summaryId }: { summaryId: string }) {
 
   if (job.status === "cancelled") {
     return (
-      <Container maxWidth="sm" sx={{ py: 6 }}>
+      <Container
+        maxWidth="sm"
+        component={m.div}
+        {...enterAnimation}
+        sx={{ py: 6 }}
+      >
         <SourceDetails source={job.source} />
         <Typography variant="h1" sx={{ mt: 2 }}>
           This job was cancelled
@@ -187,7 +199,12 @@ function SummaryJobView({ summaryId }: { summaryId: string }) {
 
   if (!job.result) {
     return (
-      <Container maxWidth="sm" sx={{ py: 6 }}>
+      <Container
+        maxWidth="sm"
+        component={m.div}
+        {...enterAnimation}
+        sx={{ py: 6 }}
+      >
         <Alert severity="error">
           <AlertTitle>Result unavailable</AlertTitle>The server completed this
           job without a result.
