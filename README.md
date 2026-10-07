@@ -1,5 +1,7 @@
 # L5asly
 
+[![Check](https://github.com/mahmoudalnkeeb/l5asly/actions/workflows/check.yml/badge.svg)](https://github.com/mahmoudalnkeeb/l5asly/actions/workflows/check.yml) [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/mahmoudalnakeeb)
+
 L5asly tells you whether a video is worth your time, and if it isn't, what it says.
 
 You give it a video upload or a public video URL, and optionally the question you want answered. It transcribes the video and writes a short brief that answers your question first. It also gives a verdict (watch it, watch only the key moments, or skip it), a timeline of which parts matter to you, and the full timestamped transcript. For YouTube links, a quick check gives a provisional verdict in a few seconds, from the title, description and chapters alone, before anything is downloaded.
@@ -91,3 +93,9 @@ One limitation to know before deploying: the database file, uploaded media, and 
 The repository is a pnpm workspace. The NestJS API and the React app share their request and response schemas through `packages/contracts`, so a change to the API's shape is type-checked on both sides. Start with the [contributor docs](docs/README.md). They walk through setup, the codebase, the architecture, and the [HTTP API](docs/reference/http-api.md). [AGENTS.md](AGENTS.md) is the coding standard.
 
 The stack: React 19, Vite, TanStack Query, and Material UI on the web side; NestJS 12, BullMQ on Redis, and Turso (an embedded SQLite-compatible database) on the API side; Deepgram, an OpenAI-compatible LLM, and Jev for the AI work; Vitest throughout.
+
+## Support
+
+L5asly is free and built in my spare time. If it saves you a few hours of video, you can buy me a coffee on Ko-fi:
+
+[![Support me on Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20L5asly-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/mahmoudalnakeeb)
