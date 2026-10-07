@@ -4,6 +4,7 @@ import {
   Alert,
   Box,
   Button,
+  Chip,
   CircularProgress,
   FormHelperText,
   IconButton,
@@ -329,6 +330,13 @@ export function SummaryForm() {
     form.clearErrors(["file", "url"]);
   }
 
+  function askQuestion(question: string): void {
+    form.setValue("expectation", question, { shouldDirty: true });
+    // A picked question is final, so the quick check can use it right away
+    // instead of waiting for the field to lose focus.
+    setCheckedExpectation(question);
+  }
+
   function trySample(): void {
     removeFile();
     form.setValue("sourceLanguage", "English");
@@ -437,6 +445,11 @@ export function SummaryForm() {
                 length={expectation.length}
                 maxLength={MAX_EXPECTATION_LENGTH}
               />
+            }
+            footer={
+              expectation.trim() === "" ? (
+                <SuggestedQuestions onPick={askQuestion} />
+              ) : null
             }
           >
             <Controller
@@ -782,6 +795,40 @@ function UploadNote() {
         verdict.
       </Typography>
     </Paper>
+  );
+}
+
+// Questions that work for most videos, for viewers who aren't sure what to ask.
+const SUGGESTED_QUESTIONS = [
+  "What are the main takeaways?",
+  "Is it beginner friendly?",
+  "Is there a practical demo?",
+  "Is any of it outdated?",
+] as const;
+
+function SuggestedQuestions({
+  onPick,
+}: {
+  onPick: (question: string) => void;
+}) {
+  return (
+    <Stack
+      direction="row"
+      role="group"
+      aria-label="Suggested questions"
+      sx={{ flexWrap: "wrap", gap: 0.75, pb: 0.75 }}
+    >
+      {SUGGESTED_QUESTIONS.map((question) => (
+        <Chip
+          key={question}
+          label={question}
+          size="small"
+          variant="outlined"
+          onClick={() => onPick(question)}
+          sx={{ borderRadius: 999, color: "text.secondary" }}
+        />
+      ))}
+    </Stack>
   );
 }
 

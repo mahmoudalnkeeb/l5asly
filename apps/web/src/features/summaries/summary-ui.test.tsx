@@ -472,6 +472,39 @@ describe("Summary workflow", () => {
     ).toHaveTextContent("English");
   });
 
+  it("fills the question from a suggestion and hides the suggestions once there is one", async () => {
+    const fetchMock = mockLinkLookups({ spokenLanguage: null });
+    renderUi(<SummaryForm />);
+
+    const suggestions = screen.getByRole("group", {
+      name: "Suggested questions",
+    });
+    fireEvent.click(
+      within(suggestions).getByRole("button", {
+        name: "Is it beginner friendly?",
+      }),
+    );
+
+    expect(
+      screen.getByRole("textbox", { name: "I want to know" }),
+    ).toHaveValue("Is it beginner friendly?");
+    expect(
+      screen.queryByRole("group", { name: "Suggested questions" }),
+    ).not.toBeInTheDocument();
+
+    // The quick check asks the picked question without waiting for a blur.
+    fireEvent.change(screen.getByRole("textbox", { name: "Video" }), {
+      target: { value: "https://youtu.be/-xbzGngfQEw" },
+    });
+    await screen.findByText("Likely skip");
+    const precheckCall = fetchMock.mock.calls.find(
+      ([path]) => path === "/api/summaries/precheck",
+    );
+    expect(JSON.parse(String(precheckCall?.[1]?.body))).toMatchObject({
+      expectation: "Is it beginner friendly?",
+    });
+  });
+
   it("rejects dropped files that are not media or are over the upload limit", async () => {
     const fetchMock = vi.fn<typeof fetch>();
     vi.stubGlobal("fetch", fetchMock);
