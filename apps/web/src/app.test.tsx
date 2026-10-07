@@ -46,7 +46,7 @@ describe("App", () => {
       screen.getByRole("button", { name: "Create summary" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Upload video" }),
+      screen.getByRole("button", { name: "Paste a link" }),
     ).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByRole("tab", { name: "Library" }));
     expect(

@@ -145,7 +145,6 @@ describe("Summary workflow", () => {
     expect(
       screen.getByRole("link", { name: "Edit profile" }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Paste a link" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Video URL" }), {
       target: { value: "https://example.com/video.mp4" },
     });
@@ -194,6 +193,27 @@ describe("Summary workflow", () => {
     ).toBeEnabled();
   });
 
+  it("starts with the link field and validates a missing link", async () => {
+    const fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    renderUi(<SummaryForm />);
+
+    expect(
+      screen.getByRole("button", { name: "Paste a link" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      screen.getByRole("textbox", { name: "Video URL" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Create summary" }));
+
+    expect(
+      await screen.findByText(
+        "Enter a YouTube link or complete HTTP/HTTPS video URL.",
+      ),
+    ).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("validates a missing file without sending a request", async () => {
     const fetchMock = vi.fn<typeof fetch>();
     vi.stubGlobal("fetch", fetchMock);
@@ -202,6 +222,7 @@ describe("Summary workflow", () => {
     expect(
       screen.getByRole("button", { name: "Advanced options" }),
     ).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(screen.getByRole("button", { name: "Upload video" }));
     fireEvent.click(screen.getByRole("button", { name: "Create summary" }));
 
     expect(
@@ -222,7 +243,6 @@ describe("Summary workflow", () => {
       </Routes>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Paste a link" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Video URL" }), {
       target: { value: "https://youtu.be/-xbzGngfQEw" },
     });
@@ -271,7 +291,6 @@ describe("Summary workflow", () => {
     vi.stubGlobal("fetch", fetchMock);
     renderUi(<SummaryForm />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Paste a link" }));
     expect(
       screen.queryByRole("button", { name: "Quick check" }),
     ).not.toBeInTheDocument();
@@ -300,6 +319,7 @@ describe("Summary workflow", () => {
     const fetchMock = vi.fn<typeof fetch>();
     vi.stubGlobal("fetch", fetchMock);
     renderUi(<SummaryForm />);
+    fireEvent.click(screen.getByRole("button", { name: "Upload video" }));
     const input = screen.getByLabelText("Choose a video or audio file");
 
     fireEvent.change(input, {
@@ -333,6 +353,7 @@ describe("Summary workflow", () => {
     renderUi(<SummaryForm />);
     const file = new File(["video"], "example.mp4", { type: "video/mp4" });
 
+    fireEvent.click(screen.getByRole("button", { name: "Upload video" }));
     fireEvent.change(screen.getByLabelText("Choose a video or audio file"), {
       target: { files: [file] },
     });

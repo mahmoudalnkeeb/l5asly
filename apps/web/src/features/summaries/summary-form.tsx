@@ -173,7 +173,7 @@ export function SummaryForm() {
   const form = useForm<SummaryFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      sourceType: "upload",
+      sourceType: "url",
       language: "English",
       sourceLanguage: "English",
       depth: "quick",
@@ -266,18 +266,6 @@ export function SummaryForm() {
               }}
             >
               <ToggleButton
-                value="upload"
-                sx={{
-                  gap: 1,
-                  px: { xs: 1.5, sm: 2.5 },
-                  whiteSpace: "nowrap",
-                  flex: { xs: 1, sm: "initial" },
-                }}
-              >
-                <UploadFileOutlined fontSize="small" />
-                Upload video
-              </ToggleButton>
-              <ToggleButton
                 value="url"
                 sx={{
                   gap: 1,
@@ -289,15 +277,22 @@ export function SummaryForm() {
                 <LinkOutlined fontSize="small" />
                 Paste a link
               </ToggleButton>
+              <ToggleButton
+                value="upload"
+                sx={{
+                  gap: 1,
+                  px: { xs: 1.5, sm: 2.5 },
+                  whiteSpace: "nowrap",
+                  flex: { xs: 1, sm: "initial" },
+                }}
+              >
+                <UploadFileOutlined fontSize="small" />
+                Upload video
+              </ToggleButton>
             </ToggleButtonGroup>
 
-            {sourceType === "upload" ? (
-              <UploadDropzone
-                fileName={fileName}
-                errorMessage={form.formState.errors.file?.message}
-                onFileChange={handleFile}
-              />
-            ) : (
+            {/* Links are the main way in; uploading a file is the alternative. */}
+            {sourceType === "url" ? (
               <Controller
                 control={form.control}
                 name="url"
@@ -316,6 +311,12 @@ export function SummaryForm() {
                     }
                   />
                 )}
+              />
+            ) : (
+              <UploadDropzone
+                fileName={fileName}
+                errorMessage={form.formState.errors.file?.message}
+                onFileChange={handleFile}
               />
             )}
 
