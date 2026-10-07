@@ -189,10 +189,6 @@ class FailingInsightProvider implements InsightProvider {
 // These tests run the pipeline by hand, so queued jobs only need to be accepted.
 class NoopSummaryQueue extends SummaryQueue {
   override async enqueue(_summaryId: string): Promise<void> {}
-
-  override async isProcessing(_summaryId: string): Promise<boolean> {
-    return false;
-  }
 }
 
 const databases: Database[] = [];
@@ -457,6 +453,36 @@ describe("SummariesService and SummaryPipeline", () => {
     await pipeline.process(older.id);
     expect(transcribe).toHaveBeenCalledTimes(1);
   });
+
+  it("blocks retry and delete only while this process is still running the job", async () => {
+    const { service, repository, transcriptionProvider, pipeline } = await createService(
+      new SuccessfulSummaryProvider(),
+      new SuccessfulVerdictProvider(),
+    );
+    let finishTranscription: () => void = () => {};
+    vi.spyOn(transcriptionProvider, "transcribe").mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishTranscription = () => resolve(transcription);
+        }),
+    );
+    const job = await service.createFromUrl({
+      url: "https://example.com/video.mp4",
+      language: "English",
+      depth: "quick",
+    });
+    const run = pipeline.process(job.id);
+    await vi.waitFor(() => expect(transcriptionProvider.transcribe).toHaveBeenCalled());
+    await repository.fail(job.id, "Failed while the worker was still cleaning up.");
+
+    await expect(service.retry(job.id)).rejects.toMatchObject({ code: "JOB_BUSY" });
+    await expect(service.delete(job.id)).rejects.toMatchObject({ code: "JOB_BUSY" });
+
+    finishTranscription();
+    await run;
+    await repository.fail(job.id, "Summary failed.");
+    await expect(service.retry(job.id)).resolves.toMatchObject({ status: "queued" });
+  });
   it("persists a profile snapshot and separates spoken language from summary language", async () => {
     const summaryProvider = new SuccessfulSummaryProvider();
     const verdictProvider = new SuccessfulVerdictProvider();
@@ -627,12 +653,6 @@ async function createService(
   const repository = new SummaryRepository(database);
   const mediaPreparer = new MediaPreparer(tmpdir());
   const transcriptionProvider = new SuccessfulTranscriptionProvider();
-  const service = new SummariesService(
-    repository,
-    mediaPreparer,
-    new NoopSummaryQueue(),
-    silentLogger,
-  );
   const pipeline = new SummaryPipeline(
     repository,
     mediaPreparer,
@@ -641,6 +661,13 @@ async function createService(
     verdictProvider,
     insightProvider,
     youtubeDownloader,
+    silentLogger,
+  );
+  const service = new SummariesService(
+    repository,
+    mediaPreparer,
+    new NoopSummaryQueue(),
+    pipeline,
     silentLogger,
   );
 

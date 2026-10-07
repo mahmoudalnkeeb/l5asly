@@ -49,7 +49,24 @@ export class SummaryPipeline {
     private readonly logger: PinoLogger,
   ) {}
 
+  // Tracked in memory rather than read from the queue: after a restart, Redis can
+  // still report the dead process's job as active until its lock expires.
+  private readonly runningIds = new Set<string>();
+
+  isRunning(id: string): boolean {
+    return this.runningIds.has(id);
+  }
+
   async process(id: string): Promise<void> {
+    this.runningIds.add(id);
+    try {
+      await this.runJob(id);
+    } finally {
+      this.runningIds.delete(id);
+    }
+  }
+
+  private async runJob(id: string): Promise<void> {
     const job = await this.repository.findById(id);
     if (!job || job.status !== "queued") {
       return;

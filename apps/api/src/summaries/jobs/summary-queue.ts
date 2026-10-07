@@ -18,7 +18,6 @@ export type ProcessSummaryJobData = z.infer<typeof processSummaryJobSchema>;
 // Abstract so tests can swap in an in-process queue.
 export abstract class SummaryQueue {
   abstract enqueue(summaryId: string): Promise<void>;
-  abstract isProcessing(summaryId: string): Promise<boolean>;
 }
 
 @Injectable()
@@ -46,10 +45,5 @@ export class BullSummaryQueue
       removeOnComplete: true,
       removeOnFail: true,
     });
-  }
-
-  override async isProcessing(summaryId: string): Promise<boolean> {
-    const job = await this.queue.getJob(summaryId);
-    return job ? job.isActive() : false;
   }
 }
