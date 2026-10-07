@@ -611,37 +611,43 @@ interface SettingTokenProps {
 }
 
 // A labelled setting on the composer's strip, read as part of the sentence.
+// The label renders inside the Select so the whole pill opens the menu and
+// the menu takes the pill's width.
 function SettingToken({ label, value, options, onChange }: SettingTokenProps) {
   const labelId = useId();
   return (
-    <Box
+    <Select
+      variant="standard"
+      disableUnderline
+      labelId={labelId}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      renderValue={(selected) => (
+        <>
+          <span id={labelId}>{label}</span>
+          <Box
+            component="span"
+            sx={{ ml: 0.5, fontWeight: 600, color: "text.primary" }}
+          >
+            {options.find((option) => option.value === selected)?.label ??
+              selected}
+          </Box>
+        </>
+      )}
       sx={{
         ...tokenSx,
-        "&:focus-within": { borderColor: "primary.main" },
+        pl: 0,
+        "&.Mui-focused": { borderColor: "primary.main" },
+        "& .MuiSelect-select": { py: 0.5, pl: 1.5, borderRadius: 999 },
+        "& .MuiSelect-select:focus": { bgcolor: "transparent" },
       }}
     >
-      <span id={labelId}>{label}</span>
-      <Select
-        variant="standard"
-        disableUnderline
-        labelId={labelId}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        sx={{
-          typography: "body2",
-          fontWeight: 600,
-          color: "text.primary",
-          "& .MuiSelect-select": { py: 0.5, pl: 0.75, borderRadius: 999 },
-          "& .MuiSelect-select:focus": { bgcolor: "transparent" },
-        }}
-      >
-        {options.map((option) => (
-          <MenuItem key={option.value} value={option.value}>
-            {option.label}
-          </MenuItem>
-        ))}
-      </Select>
-    </Box>
+      {options.map((option) => (
+        <MenuItem key={option.value} value={option.value}>
+          {option.label}
+        </MenuItem>
+      ))}
+    </Select>
   );
 }
 
