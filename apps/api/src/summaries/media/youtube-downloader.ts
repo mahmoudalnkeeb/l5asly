@@ -70,6 +70,7 @@ export class YtDlpYoutubeDownloader
       "--no-warnings",
       "--skip-download",
       "--dump-single-json",
+      "--",
       url,
     ]);
 
@@ -124,6 +125,8 @@ export class YtDlpYoutubeDownloader
         "after_move:%(title)j",
         "--print",
         "after_move:filepath",
+        // Ends option parsing, so a URL can never be read as a yt-dlp flag.
+        "--",
         url,
       ]);
 

@@ -11,11 +11,15 @@ Open `http://localhost:8080`. Compose runs three containers:
 
 | Service | What it runs | Data |
 | --- | --- | --- |
-| `web` | nginx serves the built React app and proxies `/api` to the API (`apps/web/nginx.conf`). The only service exposed to the host besides Redis | |
+| `web` | nginx serves the built React app and proxies `/api` to the API (`apps/web/nginx.conf`). The only service exposed to the host besides Redis, which listens on `127.0.0.1` only | |
 | `api` | The NestJS API and the queue worker in one process | `api-data` volume (database and uploads) |
 | `redis` | The BullMQ queue, with `maxmemory-policy noeviction` | `redis-data` volume |
 
 Provider keys and `PROVIDER_MODE` come from `.env`. Compose overrides the settings that differ inside a container, such as `REDIS_URL` and `DATABASE_PATH`. See [Configuration](../reference/configuration.md) for every variable.
+
+## Before exposing it to a network
+
+L5asly has no accounts. Anyone who can reach it can see, retry, and delete every summary, and every job they start spends your Deepgram and LLM credit. Run it on your own machine or a private network, or put it behind something that authenticates users, such as a VPN, Tailscale, or a reverse proxy with login. Don't publish it to the internet as is.
 
 ## Upgrading from `l5sly.db`
 
