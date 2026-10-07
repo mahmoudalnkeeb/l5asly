@@ -5,6 +5,7 @@ coverage/
 .env.*
 !.env.example
 **/data/
+apps/api/bin/
 *.db
 *.db-shm
 *.db-wal

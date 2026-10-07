@@ -50,6 +50,15 @@ The mock summary in `providers/mock/mock-providers.ts` must still satisfy the co
 
 The queue runs one job at a time, so a long new job delays summaries. Consider a separate queue if it can take more than a few seconds.
 
+## Upgrade yt-dlp
+
+YouTube changes often break older yt-dlp releases, so expect to upgrade it from time to time.
+
+1. Pick a release on the [yt-dlp releases page](https://github.com/yt-dlp/yt-dlp/releases).
+2. In `apps/api/scripts/install-yt-dlp.mjs`, set `YTDLP_VERSION` to the release tag and replace every value in `ASSET_CHECKSUMS` with the matching line from that release's `SHA2-256SUMS` file.
+3. Run `pnpm --filter @l5sly/api run install:yt-dlp`. It sees the new version, downloads it, and verifies the checksum.
+4. Run a live YouTube job, or at least `apps/api/bin/yt-dlp --version`, before you push.
+
 ## Add or replace a provider
 
 See [Providers: adding or replacing a provider](../architecture/providers.md#adding-or-replacing-a-provider).

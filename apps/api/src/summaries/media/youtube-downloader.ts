@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
-import { mkdir, readdir, stat, unlink } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, readdir, unlink } from "node:fs/promises";
 import path from "node:path";
 
 import { fileTypeFromFile } from "file-type";
@@ -90,7 +91,7 @@ export class YtDlpYoutubeDownloader
     );
 
     try {
-      const downloaderArgs = [
+      const output = await this.runDownloader([
         "--no-playlist",
         "--no-progress",
         "--no-warnings",
@@ -98,14 +99,20 @@ export class YtDlpYoutubeDownloader
         "bestaudio/best",
         "--output",
         outputTemplate,
-      ];
-      downloaderArgs.push(url);
+        // yt-dlp reports the final file path itself; its normal output is not stable to parse.
+        // The after_move stage keeps --print from turning the download into a simulation.
+        "--print",
+        "after_move:filepath",
+        url,
+      ]);
 
-      await this.runDownloader(downloaderArgs);
-
-      const downloadedPath = await this.findDownloadedFile(outputPrefix);
-      if (!downloadedPath) {
-        throw new ProviderError("yt-dlp completed without producing a media file.");
+      const printedLines = output
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+      const downloadedPath = printedLines.at(-1);
+      if (!downloadedPath || !existsSync(downloadedPath)) {
+        throw new ProviderError("yt-dlp completed without reporting the downloaded file.");
       }
 
       const detectedType = await fileTypeFromFile(downloadedPath);
@@ -194,24 +201,6 @@ export class YtDlpYoutubeDownloader
 
   private isNetworkUnreachable(errorOutput: string): boolean {
     return /WinError 10051|network is unreachable|failed to establish a new connection/i.test(errorOutput);
-  }
-
-  private async findDownloadedFile(outputPrefix: string): Promise<string | undefined> {
-    const entries = await readdir(this.options.downloadDirectory, { withFileTypes: true });
-    const candidates: Array<{ path: string; modifiedAt: number }> = [];
-
-    for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.startsWith(`${outputPrefix}.`)) {
-        continue;
-      }
-
-      const candidatePath = path.join(this.options.downloadDirectory, entry.name);
-      const details = await stat(candidatePath);
-      candidates.push({ path: candidatePath, modifiedAt: details.mtimeMs });
-    }
-
-    candidates.sort((left, right) => right.modifiedAt - left.modifiedAt);
-    return candidates[0]?.path;
   }
 
   private async removeArtifacts(outputPrefix: string): Promise<void> {

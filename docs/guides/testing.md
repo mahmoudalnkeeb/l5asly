@@ -2,7 +2,7 @@
 
 Both apps use [Vitest](https://vitest.dev). `pnpm test` runs every suite, and `pnpm check` adds the typecheck and the build. Neither needs Redis, network access, or API keys.
 
-```powershell
+```bash
 pnpm test                                    # all packages
 pnpm --filter @l5sly/api test                # API only
 pnpm --filter @l5sly/api exec vitest run src/summaries/providers/systemone
@@ -85,7 +85,7 @@ Nest depends on `experimentalDecorators` and `emitDecoratorMetadata`. Vitest pic
 
 The automated suites never touch BullMQ. After you change anything in `summaries/jobs/`, check the real queue by hand:
 
-```powershell
+```bash
 docker compose up -d redis
 pnpm dev
 ```
