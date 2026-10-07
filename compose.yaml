@@ -1,4 +1,5 @@
-# Local services for development. The API connects to Redis through REDIS_URL.
+# `docker compose up -d --build` runs the whole app at http://localhost:8080.
+# For local development, start only Redis with `docker compose up -d redis`.
 services:
   redis:
     image: redis:8-alpine
@@ -8,6 +9,47 @@ services:
       - redis-data:/data
     # BullMQ requires Redis to never evict keys.
     command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    # Provider keys and other settings come from .env. The values below override
+    # the ones in .env that only make sense outside a container.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      REDIS_URL: redis://redis:6379
+      CLIENT_ORIGIN: http://localhost:8080
+      DATABASE_PATH: ./data/l5sly.db
+      UPLOAD_DIR: ./data/uploads
+    volumes:
+      - api-data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   redis-data:
+  api-data:

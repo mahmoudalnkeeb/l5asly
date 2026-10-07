@@ -67,14 +67,20 @@ YouTube audio is downloaded on the API host with [yt-dlp](https://github.com/yt-
 
 ## Running in production
 
+Each service has its own Docker image, and `compose.yaml` runs them together:
+
 ```bash
-pnpm build
-NODE_ENV=production pnpm start
+cp .env.example .env
+docker compose up -d --build
 ```
 
-In Windows PowerShell, set the variable first: `$env:NODE_ENV = "production"; pnpm start`.
+Open `http://localhost:8080`. Compose runs three containers:
 
-A single process serves both the API and the built web app. You need a Redis server with `maxmemory-policy noeviction` (BullMQ requires it), persistent disk for `DATABASE_PATH` and `UPLOAD_DIR`, and `CLIENT_ORIGIN` set to the app's public URL.
+- `web`: nginx serves the built React app and proxies `/api` to the API. It's the only service exposed to the host besides Redis.
+- `api`: the NestJS API and the queue worker in one process. The database and uploads live in the `api-data` volume.
+- `redis`: the BullMQ queue, with `maxmemory-policy noeviction` and its data in the `redis-data` volume.
+
+Provider keys and `PROVIDER_MODE` come from `.env`. Compose overrides the settings that differ inside a container, such as `REDIS_URL` and `DATABASE_PATH`. To run the API outside Docker, you need a Redis server with `maxmemory-policy noeviction` (BullMQ requires it) and persistent disk for `DATABASE_PATH` and `UPLOAD_DIR`. The API serves only `/api`, so put something in front of it that serves `apps/web/dist` and proxies `/api`, like `apps/web/nginx.conf` does.
 
 One limitation to know before deploying: the database file, uploaded media, and some job locking all live on one host, so you can't run several API instances behind a load balancer yet. [docs/proposals/optimization-review.md](docs/proposals/optimization-review.md) lists this and other known gaps.
 

@@ -1,9 +1,6 @@
-import { fileURLToPath } from "node:url";
-
 import { BullModule } from "@nestjs/bullmq";
 import { Module } from "@nestjs/common";
 import { APP_FILTER, APP_INTERCEPTOR } from "@nestjs/core";
-import { ServeStaticModule } from "@nestjs/serve-static";
 import { LoggerModule } from "nestjs-pino";
 
 import { ApiExceptionFilter } from "./common/api-exception.filter.js";
@@ -14,10 +11,6 @@ import { ConfigModule } from "./config/config.module.js";
 import { DatabaseModule } from "./database/database.module.js";
 import { HealthController } from "./health/health.controller.js";
 import { SummariesModule } from "./summaries/summaries.module.js";
-
-const clientDirectory = fileURLToPath(
-  new URL("../../web/dist/", import.meta.url),
-);
 
 @Module({
   imports: [
@@ -41,13 +34,6 @@ const clientDirectory = fileURLToPath(
       useFactory: (config: AppConfig) => ({
         connection: { url: config.redisUrl },
       }),
-    }),
-    ServeStaticModule.forRootAsync({
-      inject: [APP_CONFIG],
-      useFactory: (config: AppConfig) =>
-        config.nodeEnv === "production"
-          ? [{ rootPath: clientDirectory, exclude: ["/api/{*path}"] }]
-          : [],
     }),
     SummariesModule,
   ],

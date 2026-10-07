@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+**/coverage
+**/*.tsbuildinfo
+**/data
+apps/api/bin
+apps/web/.vite
+.env
+.env.*
+.git
+docs

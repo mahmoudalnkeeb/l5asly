@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "main": "dist/main.js",
+  "files": [
+    "dist",
+    "scripts"
+  ],
   "scripts": {
     "dev": "concurrently -n types,server -c yellow,green \"tsc -p tsconfig.build.json --watch --preserveWatchOutput\" \"node --watch dist/main.js\"",
     "build": "tsc -p tsconfig.build.json",
@@ -20,7 +24,6 @@
     "@nestjs/core": "^12.1.2",
     "@nestjs/http-client": "^0.0.1",
     "@nestjs/platform-express": "^12.1.2",
-    "@nestjs/serve-static": "^12.0.0",
     "@tursodatabase/database": "^0.8.2",
     "bullmq": "^6.3.11",
     "dotenv": "^18.0.5",

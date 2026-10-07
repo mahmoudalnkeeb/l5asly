@@ -8,7 +8,7 @@ The API reads its configuration from environment variables once, at startup, in 
 
 | Variable | Default | Notes |
 | --- | --- | --- |
-| `NODE_ENV` | `development` | `development`, `test`, or `production`. In `production` the API also serves `apps/web/dist` |
+| `NODE_ENV` | `development` | `development`, `test`, or `production` |
 | `PORT` | `4000` | HTTP port |
 | `LOG_LEVEL` | `info` | `fatal`, `error`, `warn`, `info`, `debug`, `trace`, or `silent` |
 | `CLIENT_ORIGIN` | `http://localhost:5173` | Allowed CORS origin |
