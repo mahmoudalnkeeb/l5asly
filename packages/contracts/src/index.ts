@@ -9,10 +9,18 @@ export const JOB_STATUSES = [
   "failed",
   "cancelled",
 ] as const;
+export const URL_SOURCE_TYPES = [
+  "youtube",
+  "public_video",
+  "public_audio",
+] as const;
+export const SOURCE_TYPES = ["upload", ...URL_SOURCE_TYPES] as const;
 export const MAX_EXPECTATION_LENGTH = 240;
 
 export const summaryLanguageSchema = z.enum(SUMMARY_LANGUAGES);
 export const summaryDepthSchema = z.enum(SUMMARY_DEPTHS);
+export const sourceTypeSchema = z.enum(SOURCE_TYPES);
+export const urlSourceTypeSchema = z.enum(URL_SOURCE_TYPES);
 export const jobStatusSchema = z.enum(JOB_STATUSES);
 export const jobStepSchema = z.enum(["media", "transcription", "summary"]);
 export const retryInfoSchema = z.object({
@@ -197,13 +205,23 @@ export const summaryResultSchema = z.object({
   timeline: z.array(timelineWindowSchema).optional(),
 });
 
+// Link sources carry their URL so viewers can return to the original media.
+export const summarySourceSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("upload"),
+    name: z.string().min(1),
+  }),
+  z.object({
+    type: urlSourceTypeSchema,
+    name: z.string().min(1),
+    url: z.url(),
+  }),
+]);
+
 export const summaryJobSchema = z.object({
   id: z.string().uuid(),
   status: jobStatusSchema,
-  source: z.object({
-    type: z.enum(["upload", "url"]),
-    name: z.string().min(1),
-  }),
+  source: summarySourceSchema,
   options: summaryOptionsSchema,
   progress: z.number().int().min(0).max(100),
   stage: z.string().min(1),
@@ -263,6 +281,9 @@ export const apiErrorSchema = z.object({
 
 export type SummaryLanguage = z.infer<typeof summaryLanguageSchema>;
 export type SummaryDepth = z.infer<typeof summaryDepthSchema>;
+export type SourceType = z.infer<typeof sourceTypeSchema>;
+export type UrlSourceType = z.infer<typeof urlSourceTypeSchema>;
+export type SummarySource = z.infer<typeof summarySourceSchema>;
 export type SummaryOptions = z.infer<typeof summaryOptionsSchema>;
 export type ViewerProfile = z.infer<typeof viewerProfileSchema>;
 export type PersonalizedGuidance = z.infer<typeof personalizedGuidanceSchema>;

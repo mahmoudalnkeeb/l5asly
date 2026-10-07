@@ -119,7 +119,11 @@ class StubYoutubeDownloader implements YoutubeDownloader {
 
   async download(url: string, _jobId: string): Promise<DownloadedMedia> {
     this.requestedUrl = url;
-    return { path: this.mediaPath, mimeType: "audio/webm" };
+    return {
+      path: this.mediaPath,
+      mimeType: "audio/webm",
+      title: "How rivers shape valleys",
+    };
   }
 }
 
@@ -620,10 +624,17 @@ describe("SummariesService and SummaryPipeline", () => {
       language: "English",
       depth: "quick",
     });
+    expect(job.source).toEqual({
+      type: "youtube",
+      name: "YouTube video",
+      url: "https://www.youtube.com/watch?v=abc123",
+    });
 
     await pipeline.process(job.id);
 
-    expect((await repository.findById(job.id))?.status).toBe("completed");
+    const completedJob = await repository.findById(job.id);
+    expect(completedJob?.status).toBe("completed");
+    expect(completedJob?.source.name).toBe("How rivers shape valleys");
     expect(downloader.requestedUrl).toBe(
       "https://www.youtube.com/watch?v=abc123",
     );

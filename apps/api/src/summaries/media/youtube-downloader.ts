@@ -25,9 +25,27 @@ const ytDlpMetadataSchema = z.object({
 
 const METADATA_OUTPUT_LIMIT = 20 * 1024 * 1024;
 
+// A missing title only costs the job its display name, so it never fails the download.
+function parsePrintedTitle(line: string | undefined): string | null {
+  if (!line) {
+    return null;
+  }
+
+  let printed: unknown;
+  try {
+    printed = JSON.parse(line);
+  } catch {
+    return null;
+  }
+  const title = z.string().trim().min(1).safeParse(printed);
+  return title.success ? title.data : null;
+}
+
 export interface DownloadedMedia {
   path: string;
   mimeType: string;
+  // Null when yt-dlp did not report a usable title.
+  title: string | null;
 }
 
 // Abstract so it can serve as an injection token; absent in mock mode.
@@ -101,6 +119,9 @@ export class YtDlpYoutubeDownloader
         outputTemplate,
         // yt-dlp reports the final file path itself; its normal output is not stable to parse.
         // The after_move stage keeps --print from turning the download into a simulation.
+        // The title is printed as JSON so a title can never span several lines.
+        "--print",
+        "after_move:%(title)j",
         "--print",
         "after_move:filepath",
         url,
@@ -119,6 +140,7 @@ export class YtDlpYoutubeDownloader
       return {
         path: downloadedPath,
         mimeType: detectedType?.mime ?? "application/octet-stream",
+        title: parsePrintedTitle(printedLines.at(-2)),
       };
     } catch (error) {
       await this.removeArtifacts(outputPrefix);

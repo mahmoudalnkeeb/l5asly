@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   jobStatusSchema,
   jobStepSchema,
+  sourceTypeSchema,
   summaryDepthSchema,
   summaryLanguageSchema,
   viewerProfileSchema,
@@ -12,6 +13,7 @@ import {
   type SummaryListItem,
   type SummaryOptions,
   type SummaryResult,
+  type SummarySource,
   type JobStep,
 } from "@l5sly/contracts";
 
@@ -24,7 +26,7 @@ import {
 const summaryRowSchema = z.object({
   id: z.string().uuid(),
   status: jobStatusSchema,
-  source_type: z.enum(["upload", "url"]),
+  source_type: sourceTypeSchema,
   source_name: z.string().min(1),
   source_url: z.string().nullable(),
   source_path: z.string().nullable(),
@@ -50,16 +52,13 @@ const summaryRowSchema = z.object({
 type SummaryRow = z.infer<typeof summaryRowSchema>;
 
 export interface StoredSummaryJob extends SummaryJob {
-  sourceUrl?: string;
   sourcePath?: string;
   sourceMimeType?: string;
 }
 
 export interface CreateSummaryRecord {
   id: string;
-  sourceType: "upload" | "url";
-  sourceName: string;
-  sourceUrl?: string;
+  source: SummarySource;
   sourcePath?: string;
   sourceMimeType?: string;
   options: SummaryOptions;
@@ -86,15 +85,26 @@ function parseResult(resultJson: string | null): SummaryResult | null {
   return result;
 }
 
+function mapSource(row: SummaryRow): SummarySource {
+  if (row.source_type === "upload") {
+    return { type: "upload", name: row.source_name };
+  }
+  // The table's CHECK constraint guarantees a URL for every link source.
+  if (!row.source_url) {
+    throw new Error(`Summary ${row.id} is a link source without a URL.`);
+  }
+  return {
+    type: row.source_type,
+    name: row.source_name,
+    url: row.source_url,
+  };
+}
+
 function mapRow(row: SummaryRow): StoredSummaryJob {
   return {
     id: row.id,
     status: row.status,
-    source: {
-      type: row.source_type,
-      name: row.source_name,
-    },
-    sourceUrl: row.source_url ?? undefined,
+    source: mapSource(row),
     sourcePath: row.source_path ?? undefined,
     sourceMimeType: row.source_mime_type ?? undefined,
     options: {
@@ -212,9 +222,9 @@ export class SummaryRepository {
         ) VALUES (?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'Waiting to start', ?, ?)
       `,
       record.id,
-      record.sourceType,
-      record.sourceName,
-      record.sourceUrl ?? null,
+      record.source.type,
+      record.source.name,
+      record.source.type === "upload" ? null : record.source.url,
       record.sourcePath ?? null,
       record.sourceMimeType ?? null,
       record.options.language,
@@ -289,6 +299,15 @@ export class SummaryRepository {
       stage,
       timestamp,
       timestamp,
+      id,
+    );
+  }
+
+  async updateSourceName(id: string, name: string): Promise<void> {
+    await this.database.run(
+      "UPDATE summary_jobs SET source_name = ?, updated_at = ? WHERE id = ?",
+      name,
+      new Date().toISOString(),
       id,
     );
   }

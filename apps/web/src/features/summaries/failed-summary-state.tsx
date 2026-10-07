@@ -15,6 +15,7 @@ import { Link } from "react-router-dom";
 import type { JobStep, SummaryJob } from "@l5sly/contracts";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { findStepForProgress } from "./job-steps";
+import { SourceDetails } from "./source-details";
 
 const retryLabels: Record<JobStep, string> = {
   media: "Retry processing",
@@ -52,13 +53,7 @@ export function FailedSummaryState({
 
   return (
     <Container maxWidth="sm" sx={{ py: { xs: 4, sm: 6 } }}>
-      <Typography
-        variant="caption"
-        color="text.secondary"
-        sx={{ fontFamily: "var(--font-mono)", overflowWrap: "anywhere" }}
-      >
-        {job.source.name}
-      </Typography>
+      <SourceDetails source={job.source} />
       <Typography
         variant="h1"
         sx={{ mt: 2, fontSize: { xs: "1.75rem", sm: "2.25rem" } }}

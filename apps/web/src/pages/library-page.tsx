@@ -20,7 +20,15 @@ import VideoLibraryOutlined from "@mui/icons-material/VideoLibraryOutlined";
 import { Link } from "react-router-dom";
 
 import type { SummaryListItem } from "@l5sly/contracts";
-import { formatCreatedAt, formatTimestamp } from "@/features/summaries/format";
+import {
+  formatCreatedAt,
+  formatTimestamp,
+  getContentProps,
+} from "@/features/summaries/format";
+import {
+  sourceTypeIcons,
+  sourceTypeLabels,
+} from "@/features/summaries/source-details";
 import { verdictStyles } from "@/features/summaries/verdict-insights";
 import { getErrorMessage, listSummaries } from "@/lib/api-client";
 
@@ -178,7 +186,7 @@ function SummaryRow({ summary }: { summary: SummaryListItem }) {
     ? verdictStyles[summary.verdict.recommendation]
     : null;
   const details = [
-    summary.source.type === "upload" ? "Uploaded media" : "Video link",
+    sourceTypeLabels[summary.source.type],
   ];
   if (summary.durationSeconds !== null) {
     details.push(formatTimestamp(summary.durationSeconds));
@@ -235,8 +243,36 @@ function SummaryRow({ summary }: { summary: SummaryListItem }) {
         >
           {summary.title ?? summary.source.name}
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          {details.join(" · ")}
+        {summary.title ? (
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            {...getContentProps(summary.source.name)}
+            sx={{ mt: 0.5, overflowWrap: "anywhere" }}
+          >
+            {summary.source.name}
+          </Typography>
+        ) : null}
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{ mt: 1, display: "flex", alignItems: "center", gap: 0.75 }}
+        >
+          <Box
+            component="span"
+            aria-hidden
+            sx={{
+              display: "inline-flex",
+              fontSize: 16,
+              color:
+                summary.source.type === "youtube"
+                  ? "error.main"
+                  : "primary.main",
+            }}
+          >
+            {sourceTypeIcons[summary.source.type]}
+          </Box>
+          <span>{details.join(" · ")}</span>
         </Typography>
       </Box>
       {/* Icons are aria-hidden, so the action is spelled out for screen readers. */}

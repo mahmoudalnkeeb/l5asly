@@ -11,7 +11,6 @@ import type {
   TimelineWindow,
   WatchVerdict,
 } from "@l5sly/contracts";
-import { isYouTubeUrl } from "@l5sly/contracts";
 
 import { AppError } from "../../common/errors.js";
 import { MediaPreparer, type PreparedMedia } from "../media/media-preparer.js";
@@ -100,11 +99,7 @@ export class SummaryPipeline {
           };
         } else {
           await this.repository.updateProgress(id, 12, "Preparing media");
-          if (
-            job.sourceUrl &&
-            isYouTubeUrl(job.sourceUrl) &&
-            this.youtubeDownloader
-          ) {
+          if (job.source.type === "youtube" && this.youtubeDownloader) {
             await this.repository.updateProgress(
               id,
               18,
@@ -288,25 +283,20 @@ export class SummaryPipeline {
     job: StoredSummaryJob,
     jobId: string,
   ): Promise<{ input: MediaInput; preparedMedia?: PreparedMedia }> {
-    if (job.source.type === "url") {
-      if (!job.sourceUrl) {
-        throw new AppError({
-          message: "The source URL is missing.",
-          statusCode: 500,
-          code: "SOURCE_MISSING",
-        });
-      }
-
-      if (!isYouTubeUrl(job.sourceUrl) || !this.youtubeDownloader) {
+    if (job.source.type !== "upload") {
+      if (job.source.type !== "youtube" || !this.youtubeDownloader) {
         return {
-          input: { kind: "url", url: job.sourceUrl },
+          input: { kind: "url", url: job.source.url },
         };
       }
 
       const downloadedMedia = await this.youtubeDownloader.download(
-        job.sourceUrl,
+        job.source.url,
         jobId,
       );
+      if (downloadedMedia.title) {
+        await this.repository.updateSourceName(jobId, downloadedMedia.title);
+      }
 
       try {
         const preparedMedia = await this.mediaPreparer.prepare({

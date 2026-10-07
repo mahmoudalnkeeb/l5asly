@@ -20,6 +20,7 @@ import type { SummaryJob } from "@l5sly/contracts";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { formatTimestamp } from "./format";
 import { JOB_STEPS } from "./job-steps";
+import { SourceDetails } from "./source-details";
 
 interface ProcessingStateProps {
   job: SummaryJob;
@@ -61,13 +62,9 @@ export function ProcessingState({
               : "Creating your summary"}
           </Typography>
         </Stack>
-        <Typography
-          variant="body2"
-          color="text.secondary"
-          sx={{ mt: 1, overflowWrap: "anywhere" }}
-        >
-          {job.source.name}
-        </Typography>
+        <Box sx={{ mt: 2 }}>
+          <SourceDetails source={job.source} />
+        </Box>
         <Box sx={{ mt: 4 }} aria-live="polite">
           <Stack
             direction="row"

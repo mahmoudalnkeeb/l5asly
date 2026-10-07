@@ -93,7 +93,7 @@ No body, or `multipart/form-data` with a `video` field. Send the file only when 
 
 | Field | Notes |
 | --- | --- |
-| `id`, `status`, `source { type, name }`, `options` | `status` is `queued`, `processing`, `completed`, `failed`, or `cancelled` |
+| `id`, `status`, `source`, `options` | `status` is `queued`, `processing`, `completed`, `failed`, or `cancelled`. See [Source](#source) |
 | `progress`, `stage`, `stageStartedAt` | Progress from 0 to 100, and the human-readable step |
 | `result` | `null` until the job completes. Then it holds the title, overview, viewer answer, sections, notes, recommended moments, verdict, timeline, transcript, and duration |
 | `error`, `errorCode`, `failedStep`, `errorDetails` | Set when the job is `failed` |
@@ -103,5 +103,18 @@ No body, or `multipart/form-data` with a `video` field. Send the file only when 
 Poll this endpoint while the job is `queued` or `processing`. The web app polls every 900 ms.
 
 ### Summary list item
+
+### Source
+
+`source.type` says where the media came from:
+
+| `type` | Meaning | `name` | `url` |
+| --- | --- | --- | --- |
+| `upload` | A file sent to `POST /api/summaries/upload` | The uploaded file name | Absent |
+| `youtube` | A YouTube video link | `YouTube video` until the download reports the real title, then that title | The submitted link |
+| `public_video` | Any other link | The file name from the URL path, or the host name when the path has none | The submitted link |
+| `public_audio` | A link whose path ends in a known audio extension (`.mp3`, `.m4a`, `.wav`, ...) | Same as `public_video` | The submitted link |
+
+The API never fetches a public link to classify it, so the audio/video split follows the file extension, and anything unrecognized is `public_video`.
 
 `GET /api/summaries` returns a lighter shape: `id`, `status`, `source`, `progress`, `stage`, `title`, `verdict`, `durationSeconds`, `createdAt`, and `updatedAt`.

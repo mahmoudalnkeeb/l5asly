@@ -15,6 +15,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import type {
   SummaryLanguage,
   SummaryResult as SummaryResultData,
+  SummarySource,
 } from "@l5sly/contracts";
 import { useNotification } from "@/components/notifications";
 import {
@@ -28,6 +29,7 @@ import {
   buildNotesText,
   buildSummaryText,
 } from "./summary-export";
+import { SourceDetails } from "./source-details";
 import { SummaryPanel } from "./summary-panel";
 import {
   buildTranscriptRows,
@@ -68,13 +70,13 @@ interface JumpRequest {
 
 interface SummaryResultProps {
   result: SummaryResultData;
-  sourceName: string;
+  source: SummarySource;
   requestedLanguage: SummaryLanguage;
 }
 
 export function SummaryResult({
   result,
-  sourceName,
+  source,
   requestedLanguage,
 }: SummaryResultProps) {
   const notify = useNotification();
@@ -235,19 +237,12 @@ export function SummaryResult({
       </Stack>
 
       <Box component="header" sx={{ mb: 3 }}>
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          {...getContentProps(sourceName)}
-          sx={{ overflowWrap: "anywhere", fontFamily: "var(--font-mono)" }}
-        >
-          {sourceName}
-        </Typography>
+        <SourceDetails source={source} />
         <Typography
           variant="h1"
           {...getContentProps(result.title)}
           sx={{
-            mt: 1,
+            mt: 2,
             maxWidth: 900,
             fontSize: { xs: "1.75rem", sm: "2.25rem" },
           }}

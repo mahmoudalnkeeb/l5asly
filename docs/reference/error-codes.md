@@ -34,7 +34,7 @@ These are stored when processing fails. The job's `failedStep` tells you which s
 | --- | --- | --- |
 | `PROVIDER_ERROR` | any | yt-dlp, FFmpeg, Deepgram, the LLM, or Jev failed. The message includes the upstream status when there is one |
 | `PROVIDER_TIMEOUT` | any | A provider call exceeded its configured timeout |
-| `SOURCE_MISSING` | `media` | The job's URL or uploaded file path is missing from the record |
+| `SOURCE_MISSING` | `media` | The uploaded file path is missing from the record |
 | `SUMMARY_INVALID_FORMAT` | `summary` | The LLM returned malformed or truncated JSON, or fields that don't match the schema. `errorDetails` lists the fields |
 | `SUMMARY_SCHEMA_REJECTED` | `summary` | The LLM endpoint doesn't accept strict `json_schema` structured output. Check `LLM_BASE_URL` and `LLM_MODEL` |
 | `SUMMARY_REFUSED` | `summary` | The model declined to answer, or a content filter stopped it |

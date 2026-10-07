@@ -16,6 +16,8 @@ export function createUploadOptions(options: {
   mkdirSync(options.uploadDirectory, { recursive: true });
 
   return {
+    // Browsers send file names as UTF-8; multer's latin1 default garbles Arabic names.
+    defParamCharset: "utf8",
     storage: multer.diskStorage({
       destination: options.uploadDirectory,
       filename: (_request, file, callback) => {

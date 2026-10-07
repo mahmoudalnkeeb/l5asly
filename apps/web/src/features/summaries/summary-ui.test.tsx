@@ -64,7 +64,11 @@ const result: SummaryResultData = {
 const queuedJob: SummaryJob = {
   id: "08f234b1-444d-488b-bf65-f029306383e6",
   status: "queued",
-  source: { type: "url", name: "youtube.com" },
+  source: {
+    type: "youtube",
+    name: "Team rituals that work",
+    url: "https://www.youtube.com/watch?v=abc123",
+  },
   options: { language: "English", depth: "quick" },
   progress: 0,
   stage: "Queued",
@@ -387,6 +391,23 @@ describe("job recovery and loading", () => {
     },
   };
 
+  it("names the source type and links back to the original video", () => {
+    renderUi(
+      <ProcessingState job={queuedJob} isCancelling={false} onCancel={vi.fn()} />,
+    );
+    expect(screen.getByText("YouTube video")).toBeInTheDocument();
+    expect(screen.getByText("Team rituals that work")).toBeInTheDocument();
+    const sourceLink = screen.getByRole("link", {
+      name: /opens in a new tab/,
+    });
+    expect(sourceLink).toHaveAttribute(
+      "href",
+      "https://www.youtube.com/watch?v=abc123",
+    );
+    expect(sourceLink).toHaveAttribute("target", "_blank");
+    expect(sourceLink).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
   it("shows a Material spinner, actual progress and a moving elapsed timer", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(queuedJob.createdAt));
@@ -557,6 +578,15 @@ describe("Summary result", () => {
       screen.getByRole("listitem", { name: "0:10–0:20, 90% relevant" }),
     ).toBeInTheDocument();
     expect(screen.getAllByText("Not found in transcript")).toHaveLength(1);
+  });
+
+  it("shows an uploaded file by name without a source link", () => {
+    renderResult(result);
+    expect(screen.getByText("Uploaded file")).toBeInTheDocument();
+    expect(screen.getByText("example.mp4")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /opens in a new tab/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders older results without a timeline or signals", () => {
@@ -832,7 +862,7 @@ function renderResult(
         <MemoryRouter initialEntries={initialEntries}>
           <SummaryResult
             result={summary}
-            sourceName="example.mp4"
+            source={{ type: "upload", name: "example.mp4" }}
             requestedLanguage={requestedLanguage}
           />
         </MemoryRouter>
