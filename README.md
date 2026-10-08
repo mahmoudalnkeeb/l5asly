@@ -42,7 +42,10 @@ Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) fi
 
 ## Support
 
-If L5asly saves you time, you can [buy me a coffee on Ko-fi](https://ko-fi.com/mahmoudalnakeeb).
+If L5asly saves you time, you can support me on ko-fi
+<br/>
+<br/>
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/W4R428CTIJ)
 
 ## License
 
